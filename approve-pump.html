@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>อนุมัติเบิกเติมที่ปั๊ม</title>
+<script src="config.js"></script>
+<!-- ส่วนกลางของหน้าอนุมัติ 3 หน้า (ApprovePump / ApproveStock / Dispense)
+     ใช้ในไฟล์ HTML ด้วยคำสั่ง include('Common') ในหน้าเทมเพลต  -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f5f8; --card:#fff; --ink:#1b2430; --muted:#697586; --line:#e2e7ee; --soft:#f7f9fb;
+  --primary:#1f4e79; --primary-2:#2b6cb0; --diesel:#1565c0; --benzin:#e65100;
+  --ok:#2e7d32; --bad:#c62828; --purple:#6a1b9a; --accent:#1f4e79;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Sarabun',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{margin:0;line-height:1.3}
+.muted{color:var(--muted)} .small{font-size:.86rem} .hidden{display:none!important}
+
+.ap-top{background:var(--accent);color:#fff;position:sticky;top:0;z-index:20;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.ap-top-in{max-width:680px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:10px}
+.ap-top .ttl{flex:1;min-width:0}
+.ap-top .ttl b{display:block;font-size:1.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ap-top .ttl span{font-size:.78rem;opacity:.85}
+.ap-badge{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.18);display:grid;place-items:center;flex:none;font-weight:700}
+.ap-user{font-size:.8rem;background:rgba(255,255,255,.15);border-radius:999px;padding:3px 4px 3px 10px;display:flex;gap:6px;align-items:center;white-space:nowrap}
+.ap-user span{max-width:110px;overflow:hidden;text-overflow:ellipsis}
+.ap-user button{border:0;background:rgba(255,255,255,.25);color:#fff;border-radius:999px;padding:2px 9px;cursor:pointer}
+main{max-width:680px;margin:0 auto;padding:16px 16px calc(104px + env(safe-area-inset-bottom))}
+
+.card{background:var(--card);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.06),0 2px 10px rgba(16,24,40,.05);padding:18px;margin-bottom:14px}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+label.f{display:block;font-size:.88rem;font-weight:600;margin-bottom:4px;color:#334155}
+.input{width:100%;border:1px solid #cfd8e3;background:#fff;border-radius:10px;padding:10px 12px;outline:none;min-height:46px}
+.input:focus{border-color:var(--primary-2);box-shadow:0 0 0 3px rgba(43,108,176,.15)}
+.field{margin-bottom:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid transparent;border-radius:12px;padding:10px 16px;font-weight:700;cursor:pointer;min-height:48px;background:#e8edf3}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--primary);color:#fff} .btn.ok{background:var(--ok);color:#fff}
+.btn.bad{background:#fff;color:var(--bad);border-color:#f1b5b5} .btn.orange{background:var(--benzin);color:#fff}
+.btn.purple{background:var(--purple);color:#fff} .btn.ghost{background:#fff;border-color:#cfd8e3}
+.btn.sm{min-height:36px;padding:5px 12px;font-size:.9rem;border-radius:9px}
+.btn.block{width:100%}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn-row .btn{flex:1}
+.seg{display:flex;background:#eef2f6;border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;padding:9px 6px;border-radius:9px;cursor:pointer;font-weight:700;color:#475569}
+.seg button.on{background:#fff;color:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+.tag{display:inline-block;font-size:.74rem;font-weight:700;padding:1px 9px;border-radius:999px;background:#eef2f6;color:#475569}
+.tag.diesel{background:#e3effd;color:var(--diesel)} .tag.benzin{background:#fff0e3;color:var(--benzin)}
+.st{display:inline-block;font-size:.8rem;font-weight:700;padding:2px 10px;border-radius:999px;white-space:nowrap}
+.st.PENDING{background:#fff4d6;color:#8a5a00} .st.APPROVED{background:#e3effd;color:#1554a0}
+.st.DISPENSED,.st.RECEIVED{background:#e6f4ea;color:#1e6b2a} .st.REJECTED{background:#fdeaea;color:#a61b1b}
+
+.req-id{font-weight:700;color:var(--primary);font-size:1.05rem}
+.kv{display:grid;grid-template-columns:104px 1fr;gap:6px 10px;font-size:.95rem;margin:0}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:600}
+.big{font-size:1.35rem;font-weight:700}
+.divider{border-top:1px dashed var(--line);margin:14px 0}
+.alert{border-radius:12px;padding:10px 12px;font-size:.92rem;margin:10px 0}
+.alert.bad{background:#fdeaea;color:#8f1a1a} .alert.warn{background:#fff4d6;color:#6b4d00}
+.alert.info{background:#e8f1fb;color:#1a4a7a} .alert.ok{background:#e6f4ea;color:#1e5b28}
+.done-box{text-align:center;padding:26px 10px}
+.done-box .ic{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;margin:0 auto 10px;font-size:2rem;color:#fff}
+.stepper{display:flex;align-items:center;border:1px solid #cfd8e3;border-radius:12px;overflow:hidden;width:max-content}
+.stepper button{width:56px;height:56px;border:0;background:#eef2f6;font-size:1.5rem;cursor:pointer}
+.stepper input{width:80px;text-align:center;border:0;height:56px;font-size:1.4rem;font-weight:700}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:4px;background:#f3e8fb;color:var(--purple);border-radius:999px;padding:4px 7px 4px 11px;font-weight:700}
+.chip button{border:0;background:rgba(0,0,0,.08);border-radius:50%;width:22px;height:22px;cursor:pointer;line-height:1}
+.photo-prev{max-width:100%;max-height:260px;border-radius:12px;display:block;margin-top:8px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+@media(max-width:520px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tile{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.tile b{font-size:1.45rem;display:block;line-height:1.1} .tile span{font-size:.76rem;color:var(--muted)}
+.rack{display:flex;flex-wrap:wrap;gap:6px 4px;padding:10px;background:linear-gradient(#f8fafc,#eef2f6);border-radius:12px;border:1px solid var(--line)}
+.btl{width:40px;text-align:center;font-size:.66rem;color:#475569;line-height:1.15}
+.btl svg{width:34px;height:60px;display:block;margin:0 auto}
+.btl.sel svg{filter:drop-shadow(0 0 3px rgba(43,108,176,.9))}
+.tank{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 10px 10px;background:linear-gradient(#f8fafc,#eef2f6);border-radius:12px;border:1px solid var(--line)}
+.tank svg{width:100%;max-width:240px;height:auto;display:block}
+.tank .cap{font-size:.78rem;color:var(--muted);text-align:center;line-height:1.5}
+.list-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:#fff;cursor:pointer;text-align:left;width:100%}
+.list-item:hover{border-color:#b9c6d6}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
+.tag.pump{background:#e9f7ee;color:var(--ok)} .tag.stock{background:#f3e8fb;color:var(--purple)}
+.live{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:var(--ok);font-weight:600}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.linkbtn{background:none;border:0;color:var(--primary-2);cursor:pointer;padding:0;font-size:.8rem;text-decoration:underline}
+.hint{font-size:.8rem;color:var(--muted);margin-top:3px}
+textarea.input{min-height:70px;resize:vertical}
+.liters{display:flex;gap:8px;flex-wrap:wrap}
+.liters button{width:58px;height:54px;border-radius:12px;border:1.5px solid #cfd8e3;background:#fff;font-size:1.15rem;font-weight:700;cursor:pointer}
+.liters button.on{background:var(--benzin);border-color:var(--benzin);color:#fff}
+.liters button:disabled{opacity:.35;cursor:not-allowed;text-decoration:line-through}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table.tbl{border-collapse:collapse;width:100%;font-size:.88rem;background:#fff}
+.tbl th,.tbl td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.tbl th{background:#f1f5f9;font-weight:700;color:#334155}
+.tbl td.num,.tbl th.num{text-align:right}
+.who-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+@media(min-width:641px){.modal-bg{align-items:center;padding:16px}}
+.modal{background:#fff;width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 18px calc(74px + env(safe-area-inset-bottom))}
+@media(min-width:641px){.modal{border-radius:18px}}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.modal-head button{border:0;background:#eef2f6;border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:1.1rem}
+.toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;background:#1b2430;color:#fff;padding:10px 18px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:92vw}
+.toast.bad{background:var(--bad)} .toast.ok{background:var(--ok)}
+.loading{position:fixed;inset:0;z-index:60;background:rgba(255,255,255,.55);display:grid;place-items:center}
+.spin{width:42px;height:42px;border:4px solid #cbd5e1;border-top-color:var(--primary);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.scan-box{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:4/3}
+.scan-box video{width:100%;height:100%;object-fit:cover;display:block}
+.scan-box .frame{position:absolute;inset:18% 22%;border:3px solid #ffc857;border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+.scan-msg{margin:8px 0;font-weight:600;min-height:24px}
+
+/* กล่องยิง QR (เปิดกล้องค้าง ยิงทีละขวด) */
+.gun{position:relative;background:#0b0f14;border-radius:14px;overflow:hidden;aspect-ratio:4/3;max-height:52vh}
+.gun video{width:100%;height:100%;object-fit:cover;display:block}
+.gun .frame{position:absolute;inset:14% 16%;border:3px solid #ffc857;border-radius:16px;box-shadow:0 0 0 999px rgba(0,0,0,.34)}
+.gun .gcount{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;font-weight:800;border-radius:999px;padding:5px 13px;font-size:1rem;letter-spacing:.5px}
+.gun .gflash{position:absolute;inset:0;background:#22c55e;opacity:0;pointer-events:none;transition:opacity .12s}
+.gun .gflash.on{opacity:.55;transition:none}
+.gun .gflash.bad{background:#ef4444}
+.gun .goff{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#cbd5e1;padding:20px;font-weight:600;background:#0b0f14}
+.gun.camon .goff{display:none}
+.gun-hit{font-size:1.15rem;font-weight:800;margin:10px 0 6px;min-height:28px}
+.gun-hit.ok{color:var(--ok)} .gun-hit.bad{color:var(--bad)} .gun-hit.warn{color:#b45309}
+</style>
+<script src="jsQR.js"></script>
+<script>
+/* =================== ตัวช่วยทั่วไป =================== */
+const IS_GAS = !!(window.google && google.script && google.script.run);
+const TH_MONTH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const ROLE_LABEL = { requester:'ผู้ขอเบิก', approver_pump:'ผู้อนุมัติเติมที่ปั๊ม', approver_stock:'ผู้อนุมัติเบิกสต็อก', dispenser:'ผู้จ่ายสต็อก', admin:'ผู้ดูแลระบบ' };
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+function esc(v) { return String(v === undefined || v === null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function pad(n) { return String(n).padStart(2, '0'); }
+function todayISO(d = new Date()) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function nowHM(d = new Date()) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function thDate(iso) { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? (+p[2]) + ' ' + TH_MONTH[+p[1] - 1] + ' ' + (+p[0] + 543) : (iso || '-'); }
+function thDateTime(s) { return s ? thDate(s) + ' ' + String(s).slice(11, 16) + ' น.' : '-'; }
+function cleanErr(e) { return String(e && e.message || e).replace(/^(Error|Exception):\s*/, ''); }
+function qsVal(k) { try { return tplVal(new URLSearchParams(location.search).get(k) || ''); } catch (e) { return ''; } }
+function tplVal(v) { return /^[A-Za-z0-9_:\/.?=&%-]*$/.test(v || '') ? (v || '') : ''; } // กันค่า template ที่ยังไม่ถูกแทน
+
+const API_URL = (window.FUEL_API || '');   // ตั้งค่าใน config.js เมื่อโฮสต์หน้าเว็บนอก Apps Script (เช่น Netlify)
+function api(fn, ...args) {
+  if (IS_GAS) return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(e => rej(e && e.message ? e : new Error(String(e))))[fn](...args));
+  if (API_URL) return fetch(API_URL, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain = ไม่มี preflight
+      body: JSON.stringify({ fn: fn, args: args })
+    }).then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.error || 'เรียกระบบไม่สำเร็จ'); return j.result; });
+  if (window.Mock && Mock[fn]) return new Promise((res, rej) => setTimeout(() => { try { res(JSON.parse(JSON.stringify(Mock[fn](...args)))); } catch (e) { rej(e); } }, 200));
+  return Promise.reject(new Error('หน้านี้ต้องเปิดผ่าน Web App ของ Google Apps Script'));
+}
+async function call(fn, ...args) {
+  loading(true);
+  try { return await api(fn, ...args); }
+  catch (e) { toast(cleanErr(e), 'bad'); throw e; }
+  finally { loading(false); }
+}
+function toast(msg, type = '') { const t = document.createElement('div'); t.className = 'toast ' + type; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), type === 'bad' ? 4500 : 2800); }
+function loading(on) { let el = $('#loading'); if (!el) { el = document.createElement('div'); el.id = 'loading'; el.className = 'loading hidden'; el.innerHTML = '<div class="spin"></div>'; document.body.appendChild(el); } el.classList.toggle('hidden', !on); }
+
+function openModal(title, body, buttons = [], onClose) {
+  let root = $('#modalRoot'); if (!root) { root = document.createElement('div'); root.id = 'modalRoot'; document.body.appendChild(root); }
+  root.innerHTML = `<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head"><h2 style="font-size:1.15rem">${esc(title)}</h2><button aria-label="ปิด" data-x>×</button></div>
+    <div>${body}</div>
+    <div class="btn-row" style="margin-top:16px">${buttons.map((b, i) => `<button class="btn ${b.cls || ''}" data-b="${i}">${esc(b.label)}</button>`).join('')}</div>
+  </div></div>`;
+  const el = root.firstElementChild; let closed = false;
+  const close = () => { if (closed) return; closed = true; if (root.firstElementChild === el) root.innerHTML = ''; if (onClose) onClose(); };
+  $('[data-x]', root).onclick = close;
+  el.onclick = e => { if (e.target === el) close(); };
+  buttons.forEach((b, i) => { $(`[data-b="${i}"]`, root).onclick = async () => { if (b.onClick) { const keep = await b.onClick(); if (keep === false) return; } close(); }; });
+  return close;
+}
+function confirmBox(title, html, okLabel = 'ยืนยัน', cls = 'primary') {
+  return new Promise(res => openModal(title, html, [{ label:'ยกเลิก', cls:'ghost', onClick:() => res(false) }, { label:okLabel, cls, onClick:() => res(true) }], () => res(false)));
+}
+
+function statusText(r) {
+  switch (r.status) {
+    case 'PENDING': return 'รออนุมัติ';
+    case 'APPROVED': return r.source === 'STOCK' ? 'รอจ่ายน้ำมัน' : (r.itemType === 'เติมสต็อก' ? 'รอรับเข้าสต็อก' : 'อนุมัติ/รอรับเอกสาร');
+    case 'DISPENSED': return 'จ่ายน้ำมันแล้ว';
+    case 'RECEIVED': return 'รับเข้าสต็อกแล้ว';
+    case 'REJECTED': return 'ไม่อนุมัติ';
+  }
+  return r.status;
+}
+function stBadge(r) { return `<span class="st ${esc(r.status)}">${esc(statusText(r))}</span>`; }
+function amountText(r, useApproved = true) {
+  if (r.source === 'STOCK') return ((useApproved && r.approvedAmount) || r.amount) + ' ลิตร';
+  if (r.amountMode === 'FULL') return 'เต็มถัง';
+  const v = useApproved && r.approvedAmount !== '' && r.approvedAmount !== undefined && r.status !== 'PENDING' ? r.approvedAmount : r.amount;
+  return v + (r.amountMode === 'BAHT' ? ' บาท' : ' ลิตร');
+}
+function fuelTag(f) { return `<span class="tag ${f === 'ดีเซล' ? 'diesel' : 'benzin'}">${esc(f)}</span>`; }
+
+/** ส่วนหัวคำขอ (ใช้ร่วมกันทุกหน้า) */
+function reqHeader(r) {
+  return `<div class="card-head" style="margin-bottom:10px"><div><div class="req-id">${esc(r.reqId)}</div>
+    <div class="small muted">ส่งคำขอ ${thDateTime(r.createdAt)}</div></div>${stBadge(r)}</div>`;
+}
+/** สรุปผลรายการที่ดำเนินการไปแล้ว */
+function processedNote(r) {
+  const who = r.status === 'DISPENSED' || r.status === 'RECEIVED' ? `ผู้จ่าย ${esc(r.dispenserName)} · ${thDateTime(r.dispensedAt)}` : `โดย ${esc(r.approverName || '-')} · ${thDateTime(r.approvedAt)}`;
+  return `<div class="alert ${r.status === 'REJECTED' ? 'bad' : 'ok'}">รายการนี้ดำเนินการแล้ว: <b>${esc(statusText(r))}</b><br><span class="small">${who}</span>
+    ${r.approveNote ? `<br><span class="small">หมายเหตุ: ${esc(r.approveNote)}</span>` : ''}${r.bottles ? `<br><span class="small">ขวด: ${esc(r.bottles)}</span>` : ''}</div>`;
+}
+function doneBox(ok, title, sub) {
+  return `<div class="done-box"><div class="ic" style="background:${ok ? 'var(--ok)' : 'var(--bad)'}">${ok ? '✓' : '✕'}</div>
+    <h2>${esc(title)}</h2><p class="muted">${sub || ''}</p></div>`;
+}
+
+/* =================== ระบุตัวผู้ใช้ (ไม่ต้องล็อกอิน) ===================
+   1) เปิดจากลิงก์ใน LINE/Telegram → ลิงก์มี u= (ผู้ใช้) และ k= (รหัสลิงก์) ใช้งานได้ทันที
+   2) เปิดลิงก์เอง → เลือกชื่อครั้งเดียว แล้วจำไว้ในเครื่อง
+   ==================================================================== */
+const USER_KEY = 'fuel_user_v2';
+function rememberUser(id) { try { localStorage.setItem(USER_KEY, id); } catch (e) {} }
+function rememberedUser() { try { return localStorage.getItem(USER_KEY) || ''; } catch (e) { return ''; } }
+
+/**
+ * เริ่มหน้าอนุมัติ
+ * opt = { page, title, badge, color, render(ctx) }   ctx = { auth, me, boot, reqId, appUrl, reload(), openList() }
+ */
+async function startApprovalPage(opt) {
+  document.documentElement.style.setProperty('--accent', opt.color);
+  const reqId = tplVal(document.body.dataset.req) || qsVal('id');
+  const appUrl = tplVal(document.body.dataset.app);
+  const linkUser = tplVal(document.body.dataset.u) || qsVal('u');
+  const linkToken = tplVal(document.body.dataset.k) || qsVal('k');
+  document.body.insertAdjacentHTML('afterbegin', `
+    <header class="ap-top"><div class="ap-top-in">
+      <div class="ap-badge">${esc(opt.badge)}</div>
+      <div class="ttl"><b>${esc(opt.title)}</b><span id="apOrg">ระบบเบิก-จ่ายน้ำมันเชื้อเพลิง</span></div>
+      <div id="apUser"></div>
+    </div></header>`);
+  const view = $('#view');
+  view.innerHTML = '<div class="empty">กำลังโหลด...</div>';
+  let boot;
+  try { boot = await api('getApprovalBoot', opt.page); }
+  catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">โหลดข้อมูลไม่สำเร็จ: ${esc(cleanErr(e))}</div></div>`; return; }
+  if (boot.config.orgName) $('#apOrg').textContent = boot.config.orgName;
+
+  const ctx = { boot, reqId, appUrl, auth: null, me: null };
+  ctx.reload = () => opt.render(ctx);
+  ctx.openList = () => { ctx.reqId = ''; opt.render(ctx); };
+
+  const showUser = () => {
+    $('#apUser').innerHTML = ctx.me
+      ? `<div class="ap-user"><span>${esc(ctx.me.name)}</span><button id="apSwitch">เปลี่ยน</button></div>` : '';
+    if (ctx.me) $('#apSwitch').onclick = chooser;
+  };
+  const use = id => {
+    const u = boot.users.find(x => String(x.id) === String(id));
+    if (!u) return false;
+    ctx.me = u;
+    ctx.auth = (String(id) === String(linkUser) && linkToken) ? { userId: u.id, token: linkToken } : { userId: u.id, link: true };
+    rememberUser(u.id); showUser();
+    return true;
+  };
+  const chooser = () => {
+    view.innerHTML = `<div class="card">
+      <h2 style="margin-bottom:4px">คุณคือใคร</h2>
+      <p class="small muted" style="margin-top:0">เลือกชื่อของคุณเพื่อใช้งานหน้า${esc(opt.title)} (เลือกครั้งเดียว ระบบจะจำไว้ในเครื่องนี้)</p>
+      ${boot.users.length ? `<div class="field"><select id="whoSel" class="input">
+        ${boot.users.map(u => `<option value="${esc(u.id)}" ${ctx.me && ctx.me.id === u.id ? 'selected' : ''}>${esc(u.name)}${u.position ? ' — ' + esc(u.position) : ''}</option>`).join('')}
+      </select></div>
+      <button class="btn primary block" id="whoGo">ใช้ชื่อนี้</button>`
+      : '<div class="alert warn">ยังไม่มีผู้ใช้ที่มีสิทธิ์หน้านี้ (ตั้งค่าในชีต Users)</div>'}
+    </div>`;
+    if (boot.users.length) $('#whoGo').onclick = () => { if (use($('#whoSel').value)) opt.render(ctx); };
+  };
+
+  if (use(linkUser) || use(rememberedUser()) || (boot.users.length === 1 && use(boot.users[0].id))) opt.render(ctx);
+  else chooser();
+}
+
+/** รายการที่รอดำเนินการ (เมื่อเปิดหน้าโดยไม่มีเลขคำขอ) */
+async function renderPendingList(ctx, filter, emptyText, lineFn) {
+  const view = $('#view');
+  view.innerHTML = '<div class="empty">กำลังโหลด...</div>';
+  let rows;
+  try { rows = (await api('listRequests', ctx.auth, filter)).reverse(); }
+  catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">${esc(cleanErr(e))}</div></div>`; return; }
+  view.innerHTML = `<div class="card">
+    <div class="card-head"><h2>รอดำเนินการ (${rows.length})</h2><button class="btn ghost sm" id="rlReload">รีเฟรช</button></div>
+    ${rows.length ? rows.map(r => `<button class="list-item" data-id="${esc(r.reqId)}">
+        <div><b>${esc(r.reqId)}</b> · ${esc(r.requesterName)}<div class="small muted">${lineFn(r)}</div></div>
+        <span class="st ${esc(r.status)}">${esc(amountText(r))}</span></button>`).join('') : `<div class="empty">${esc(emptyText)}</div>`}
+    ${ctx.appUrl ? `<a class="btn ghost block" style="margin-top:6px;text-decoration:none" href="${esc(ctx.appUrl)}" target="_top">เปิดระบบหลัก</a>` : ''}
+  </div>`;
+  $('#rlReload').onclick = () => renderPendingList(ctx, filter, emptyText, lineFn);
+  $$('[data-id]', view).forEach(b => b.onclick = () => { ctx.reqId = b.dataset.id; ctx.reload(); });
+}
+function backToListBtn() { return `<button class="btn ghost block" id="toList" style="margin-top:10px">ดูรายการอื่นที่รอดำเนินการ</button>`; }
+
+/* =================== ขวดน้ำมัน + สแกน QR =================== */
+function bottleSVG(kind) {
+  const stroke = kind === 'sel' ? '#2b6cb0' : '#94a3b8';
+  const liquid = { full:'#f59e0b', sel:'#2b6cb0' }[kind];
+  return `<svg viewBox="0 0 40 72" aria-hidden="true">
+    <rect x="14" y="1.5" width="12" height="8" rx="2" fill="${liquid ? '#b45309' : '#cbd5e1'}"/>
+    <path d="M13 9.5h14v5c6 3 9 7 9 13v37a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6v-37c0-6 3-10 9-13z" fill="#fff" stroke="${stroke}" stroke-width="${kind === 'sel' ? 2.5 : 1.6}"/>
+    ${liquid ? `<path d="M6 30h28v34a4.5 4.5 0 0 1-4.5 4.5h-19A4.5 4.5 0 0 1 6 64z" fill="${liquid}"/><text x="20" y="54" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">1L</text>` : ''}
+  </svg>`;
+}
+/** ถังน้ำมันใหญ่: ระดับน้ำมันในถัง + จำนวนลิตรที่เบิกได้ตรงกลาง (sel = ลิตรที่กำลังจะเบิก) */
+function stockTank(stock, sel) {
+  const s = stock || {};
+  const cap = Math.max(1, (+s.balance || 0) + (+s.empty || 0) + (+s.out || 0));
+  const avail = Math.max(0, +s.available || 0);
+  const pick = Math.max(0, Math.min(+sel || 0, avail));
+  const TOP = 26, H = 170, BOT = TOP + H;
+  const y = v => BOT - (Math.min(Math.max(v, 0), cap) / cap) * H;
+  const yA = y(avail), yP = y(avail - pick);
+  const num = String(avail), fs = num.length > 3 ? 34 : num.length > 2 ? 40 : 46;
+  return `<div class="tank">
+    <svg viewBox="0 0 200 232" role="img" aria-label="น้ำมันในสต็อก เบิกได้ ${avail} ลิตร">
+      <defs>
+        <clipPath id="tkClip"><rect x="32" y="26" width="136" height="170"/><ellipse cx="100" cy="196" rx="68" ry="18"/></clipPath>
+        <linearGradient id="tkBody" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#cbd5e1"/><stop offset=".35" stop-color="#f8fafc"/><stop offset="1" stop-color="#bac5d3"/></linearGradient>
+        <linearGradient id="tkOil" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#c2410c"/><stop offset=".38" stop-color="#fb923c"/><stop offset="1" stop-color="#b8430b"/></linearGradient>
+        <linearGradient id="tkSel" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#1e4f86"/><stop offset=".38" stop-color="#4a8ed6"/><stop offset="1" stop-color="#1b4a7e"/></linearGradient>
+      </defs>
+      <path d="M32 26v170a68 18 0 0 0 136 0V26z" fill="url(#tkBody)"/>
+      <g clip-path="url(#tkClip)">
+        ${avail ? `<rect x="32" y="${yA}" width="136" height="${BOT + 22 - yA}" fill="url(#tkOil)"/>
+          <ellipse cx="100" cy="${yA}" rx="68" ry="18" fill="#fdba74"/>` : ''}
+        ${pick ? `<rect x="32" y="${yA}" width="136" height="${Math.max(1, yP - yA)}" fill="url(#tkSel)"/>
+          <path d="M32 ${yP}a68 18 0 0 0 136 0z" fill="#fdba74"/>
+          <ellipse cx="100" cy="${yA}" rx="68" ry="18" fill="#7fb3e3"/>` : ''}
+      </g>
+      <path d="M32 88a68 18 0 0 0 136 0" fill="none" stroke="rgba(15,23,42,.16)" stroke-width="8"/>
+      <path d="M32 140a68 18 0 0 0 136 0" fill="none" stroke="rgba(15,23,42,.16)" stroke-width="8"/>
+      <path d="M32 26v170a68 18 0 0 0 136 0V26" fill="none" stroke="#7c8ca0" stroke-width="2.5"/>
+      <ellipse cx="100" cy="26" rx="68" ry="18" fill="#dde3ea" stroke="#7c8ca0" stroke-width="2.5"/>
+      <ellipse cx="128" cy="21" rx="12" ry="5.5" fill="#94a3b8"/>
+      <rect x="38" y="80" width="124" height="72" rx="18" fill="#fff" opacity=".94"/>
+      <text x="100" y="${num.length > 3 ? 120 : 124}" text-anchor="middle" font-size="${fs}" font-weight="800" fill="#e65100">${num}</text>
+      <text x="100" y="144" text-anchor="middle" font-size="13.5" font-weight="700" fill="#64748b">ลิตร ที่เบิกได้</text>
+    </svg>
+    <div class="cap">${pick ? `<b style="color:#2b6cb0">น้ำเงิน = จะเบิก ${pick} ลิตร</b> · ` : ''}ส้ม = น้ำมันที่เบิกได้ · จองแล้ว ${(+s.reserved || 0)} ลิตร · อยู่กับผู้เบิก ${(+s.out || 0)} ขวด</div>
+  </div>`;
+}
+function stockTiles(s) {
+  return `<div class="tiles">
+    <div class="tile"><b style="color:var(--benzin)">${s.balance}</b><span>ขวดเต็ม</span></div>
+    <div class="tile"><b style="color:var(--ok)">${s.available}</b><span>ให้เบิกได้</span></div>
+    <div class="tile"><b style="color:#64748b">${s.empty}</b><span>ขวดเปล่า</span></div>
+    <div class="tile"><b style="color:var(--purple)">${s.out}</b><span>อยู่กับผู้เบิก</span></div></div>`;
+}
+function parseBottleCode(txt) { return String(txt || '').trim().toUpperCase().replace(/^FUELBOTTLE:/, ''); }
+
+/**
+ * กล่องยิง QR — เปิดกล้องค้างไว้ ยิงทีละขวด ระบบเพิ่มให้อัตโนมัติ (เหมือนยิงบาร์โค้ดสินค้า)
+ * scanGun({ mount, need, initial, validate(code)->error|null, onChange(codes), autostart })
+ *   -> { codes(), stop(), start(), set(list), remove(code) }
+ */
+function scanGun(opt) {
+  const host = typeof opt.mount === 'string' ? $(opt.mount) : opt.mount;
+  if (!host) return { codes: () => [], stop: () => {}, start: () => {}, set: () => {}, remove: () => {} };
+  let codes = (opt.initial || []).slice();
+  let stream = null, raf = null, track = null, actx = null, torchOn = false;
+  const seen = {};
+
+  host.innerHTML = `
+    <div class="gun" id="gBox">
+      <video id="gVid" playsinline muted autoplay></video>
+      <div class="frame"></div>
+      <div class="gcount" id="gCount">0</div>
+      <div class="gflash" id="gFlash"></div>
+      <div class="goff" id="gOff"><span>กดปุ่ม <b>เปิดกล้อง</b> เพื่อเริ่มยิง QR</span></div>
+    </div>
+    <div class="gun-hit" id="gHit">กำลังเปิดกล้อง...</div>
+    <div class="btn-row" style="margin-bottom:10px">
+      <button type="button" class="btn ghost sm" id="gPower">เปิดกล้อง</button>
+      <button type="button" class="btn ghost sm hidden" id="gTorch">ไฟฉาย</button>
+      <button type="button" class="btn ghost sm" id="gPhoto">ถ่ายรูปแทน</button>
+    </div>
+    <div style="display:flex;gap:6px">
+      <input class="input" id="gManual" placeholder="พิมพ์เอง / เครื่องยิงบาร์โค้ด เช่น FB-05" autocomplete="off">
+      <button type="button" class="btn ghost" id="gAdd">เพิ่ม</button>
+    </div>
+    <div class="chips" id="gChips" style="margin-top:10px"></div>`;
+
+  const box = $('#gBox', host), vid = $('#gVid', host), hit = $('#gHit', host);
+  const say = (t, cls) => { hit.className = 'gun-hit ' + (cls || ''); hit.textContent = t; };
+  const beep = ok => {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'square'; o.frequency.value = ok ? 1760 : 300;
+      g.gain.value = 0.05; o.connect(g); g.connect(actx.destination);
+      o.start(); o.stop(actx.currentTime + (ok ? 0.1 : 0.24));
+    } catch (e) {}
+  };
+  const flash = ok => {
+    const f = $('#gFlash', host); if (!f) return;
+    f.classList.toggle('bad', !ok); f.classList.add('on');
+    setTimeout(() => f.classList.remove('on'), 130);
+  };
+  const draw = () => {
+    const c = $('#gCount', host);
+    if (c) c.textContent = opt.need ? codes.length + ' / ' + opt.need : String(codes.length);
+    $('#gChips', host).innerHTML = codes.map(x => `<span class="chip">${esc(x)}<button type="button" data-rm="${esc(x)}" aria-label="ลบ">×</button></span>`).join('');
+    $$('#gChips [data-rm]', host).forEach(b => b.onclick = () => remove(b.dataset.rm));
+    if (opt.onChange) opt.onChange(codes.slice());
+  };
+  const remove = code => {
+    codes = codes.filter(x => x !== code); delete seen[code];
+    say('เอาขวด ' + code + ' ออกแล้ว', 'warn'); draw();
+    if (opt.need && codes.length < opt.need && !stream) start();
+  };
+  const add = raw => {
+    const code = parseBottleCode(raw); if (!code) return false;
+    const now = Date.now();
+    if (seen[code] && now - seen[code] < 1500) return false;
+    seen[code] = now;
+    if (codes.indexOf(code) >= 0) { say(code + ' ยิงไปแล้ว', 'warn'); beep(false); flash(false); return false; }
+    if (opt.need && codes.length >= opt.need) { say('ครบ ' + opt.need + ' ขวดแล้ว', 'warn'); beep(false); return false; }
+    const err = opt.validate ? opt.validate(code) : null;
+    if (err) { say(err, 'bad'); beep(false); flash(false); if (navigator.vibrate) navigator.vibrate([60, 40, 60]); return false; }
+    codes.push(code); beep(true); flash(true);
+    if (navigator.vibrate) navigator.vibrate(70);
+    say('✓ ' + code + (opt.need ? '  (' + codes.length + '/' + opt.need + ')' : ''), 'ok');
+    draw();
+    if (opt.need && codes.length >= opt.need) { stop(); say('✓ ครบ ' + opt.need + ' ขวดแล้ว', 'ok'); }
+    return true;
+  };
+
+  function stop() {
+    if (raf) cancelAnimationFrame(raf); raf = null;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; track = null; torchOn = false;
+    if (box) box.classList.remove('camon');
+    const p = $('#gPower', host); if (p) p.textContent = 'เปิดกล้อง';
+    const t = $('#gTorch', host); if (t) t.classList.add('hidden');
+  }
+  // เบราว์เซอร์ในแอป (LINE / Facebook / IG) มักไม่ให้ใช้กล้อง ต้องเปิดในเบราว์เซอร์ของเครื่อง
+  const inAppBrowser = /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent);
+  const extUrl = () => location.href + (location.search ? '&' : '?') + 'openExternalBrowser=1';
+  const sayFix = (msg) => {
+    hit.className = 'gun-hit bad';
+    hit.innerHTML = esc(msg) + (inAppBrowser
+      ? ' — แตะ <a href="' + esc(extUrl()) + '" style="color:inherit">เปิดในเบราว์เซอร์ของเครื่อง</a> แล้วลองใหม่'
+      : ' — ลองกด "เปิดกล้อง" อีกครั้ง หรือใช้ "ถ่ายรูปแทน" / พิมพ์หมายเลข');
+  };
+
+  function start() {
+    if (stream) return;
+    if (!window.jsQR) { sayFix('โหลดตัวอ่าน QR ไม่สำเร็จ'); return; }
+    if (!window.isSecureContext) { sayFix('หน้านี้ไม่ได้เปิดผ่าน https กล้องจึงใช้ไม่ได้'); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { sayFix('เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง'); return; }
+    say('กำลังเปิดกล้อง...');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } } }).then(s => {
+      if (!document.body.contains(host)) { s.getTracks().forEach(t => t.stop()); return; }
+      stream = s; track = s.getVideoTracks()[0];
+      vid.srcObject = s; vid.play().catch(() => {});
+      box.classList.add('camon');
+      $('#gPower', host).textContent = 'ปิดกล้อง';
+      try { if (track.getCapabilities && track.getCapabilities().torch) $('#gTorch', host).classList.remove('hidden'); } catch (e) {}
+      say('เล็ง QR บนขวดทีละใบ — ระบบเพิ่มให้เอง');
+      const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+      const tick = () => {
+        if (!stream || !document.body.contains(host)) return stop();
+        if (vid.readyState === vid.HAVE_ENOUGH_DATA && vid.videoWidth) {
+          const k = Math.min(1, 640 / Math.max(vid.videoWidth, vid.videoHeight));
+          cv.width = Math.round(vid.videoWidth * k); cv.height = Math.round(vid.videoHeight * k);
+          cx.drawImage(vid, 0, 0, cv.width, cv.height);
+          const q = jsQR(cx.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height, { inversionAttempts: 'dontInvert' });
+          if (q && q.data) add(q.data);
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    }).catch(err => {
+      const n = (err && err.name) || '';
+      sayFix(n === 'NotAllowedError' ? 'เบราว์เซอร์ไม่อนุญาตให้ใช้กล้อง'
+        : n === 'NotFoundError' || n === 'OverconstrainedError' ? 'ไม่พบกล้องที่ใช้ได้ในเครื่องนี้'
+        : n === 'NotReadableError' ? 'กล้องถูกแอปอื่นใช้อยู่'
+        : 'เปิดกล้องไม่ได้ (' + (n || 'ไม่ทราบสาเหตุ') + ')');
+    });
+  }
+
+  $('#gPower', host).onclick = () => stream ? (stop(), say('ปิดกล้องแล้ว')) : start();
+  $('#gTorch', host).onclick = () => {
+    if (!track) return;
+    torchOn = !torchOn;
+    track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(() => say('มือถือนี้เปิดไฟฉายไม่ได้', 'warn'));
+  };
+  const man = $('#gManual', host);
+  $('#gAdd', host).onclick = () => { add(man.value); man.value = ''; man.focus(); };
+  man.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('#gAdd', host).click(); } };
+  $('#gPhoto', host).onclick = () => {
+    let f = $('#gunFile');
+    if (!f) { f = document.createElement('input'); f.type = 'file'; f.accept = 'image/' + '*'; f.setAttribute('capture', 'environment'); f.id = 'gunFile'; f.className = 'hidden'; document.body.appendChild(f); }
+    f.value = '';
+    f.onchange = async () => {
+      const file = f.files[0]; if (!file) return;
+      say('กำลังอ่าน QR จากรูป...');
+      try {
+        const res = await photoWithCodes(file, opt.need ? opt.need - codes.length : 0);
+        if (!res.codes.length) return say('อ่าน QR จากรูปไม่ได้ ลองถ่ายใกล้ขึ้น', 'bad');
+        let n = 0; res.codes.forEach(c => { if (add(c)) n++; });
+        if (n) say('เพิ่มจากรูป ' + n + ' ขวด', 'ok');
+      } catch (e) { say('อ่านรูปไม่ได้', 'bad'); }
+    };
+    f.click();
+  };
+
+  draw();
+  if (opt.autostart !== false) start();
+  return {
+    codes: () => codes.slice(),
+    set: list => { codes = (list || []).slice(); draw(); },
+    remove, stop, start
+  };
+}
+
+/** openScanner({title, need, validate(code)->error|null, initial, onDone(codes)}) — กล่องยิง QR แบบ popup */
+function openScanner(opt) {
+  let ctl = null;
+  const stop = () => { if (ctl) ctl.stop(); };
+  openModal(opt.title || 'ยิง QR ขวดน้ำมัน', '<div id="gunMount"></div>',
+    [{ label: 'ยกเลิก', cls: 'ghost', onClick: stop },
+     { label: 'ใช้รายการนี้', cls: 'primary', onClick: () => { stop(); opt.onDone(ctl ? ctl.codes() : []); } }], stop);
+  ctl = scanGun({ mount: '#gunMount', need: opt.need, initial: opt.initial, validate: opt.validate });
+}
+
+/**
+ * อ่าน QR หลายอันจากรูปเดียว (แบ่งรูปเป็นตารางย่อย แล้วอ่านทีละส่วน)
+ * คืนค่า { codes: [...], photo: {dataUrl, data, mimeType} }  — ใช้รูปเดียวทั้งสแกนและแนบเป็นหลักฐาน
+ */
+function decodeQRCodes(canvas, want) {
+  if (!window.jsQR) return [];
+  const found = [];
+  const push = v => { const c = parseBottleCode(v); if (c && found.indexOf(c) < 0) found.push(c); };
+  const enough = () => want && found.length >= want;
+
+  // อ่าน QR ในภาพ แล้วลบตำแหน่งที่อ่านได้ทิ้ง เพื่อหาอันถัดไป (รูปเดียวอ่านได้หลายขวด)
+  const scanErase = (cv, limit) => {
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+    for (let i = 0; i < limit; i++) {
+      const d = cx.getImageData(0, 0, cv.width, cv.height);
+      const q = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+      if (!q || !q.data) break;
+      push(q.data);
+      const L = q.location, pts = [L.topLeftCorner, L.topRightCorner, L.bottomLeftCorner, L.bottomRightCorner];
+      const xs = pts.map(p => p.x), ys = pts.map(p => p.y), pad = 8;
+      cx.fillStyle = '#ffffff';
+      cx.fillRect(Math.min.apply(null, xs) - pad, Math.min.apply(null, ys) - pad,
+                  Math.max.apply(null, xs) - Math.min.apply(null, xs) + pad * 2,
+                  Math.max.apply(null, ys) - Math.min.apply(null, ys) + pad * 2);
+      if (enough()) return;
+    }
+  };
+  const copyOf = (src, sx, sy, sw, sh, out) => {
+    const k = Math.min(2, out / Math.max(sw, sh));
+    const c = document.createElement('canvas');
+    c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+    c.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    return c;
+  };
+
+  const W = canvas.width, H = canvas.height;
+  scanErase(copyOf(canvas, 0, 0, W, H, Math.max(W, H)), 12);   // ทั้งรูปก่อน
+  if (enough()) return found;
+
+  // ถ้ายังไม่ครบ ไล่อ่านทีละส่วนของรูป (ช่วยกรณี QR เล็กหรือวางชิดกัน)
+  const base = Math.min(W, H);
+  [1, 1.6, 2.4, 3.5].forEach(div => {
+    if (enough()) return;
+    const win = Math.round(base / div);
+    if (win < 80) return;
+    const step = Math.max(40, Math.round(win / 2));
+    for (let y = 0; y < H && !enough(); y += step) {
+      for (let x = 0; x < W && !enough(); x += step) {
+        const w = Math.min(win, W - x), h = Math.min(win, H - y);
+        if (w < 80 || h < 80) continue;
+        scanErase(copyOf(canvas, x, y, w, h, 600), 4);
+      }
+    }
+  });
+  return found;
+}
+
+async function photoWithCodes(file, want) {
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  const draw = max => {
+    const k = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  };
+  const codes = decodeQRCodes(draw(1600), want);        // ใช้ภาพใหญ่ในการอ่าน QR
+  const url = draw(1280).toDataURL('image/jpeg', 0.85); // ภาพที่ส่งเข้าระบบ
+  URL.revokeObjectURL(img.src);
+  return { codes, photo: { dataUrl: url, data: url.split(',')[1], mimeType: 'image/jpeg' } };
+}
+
+function compressImage(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const url = c.toDataURL('image/jpeg', 0.8); URL.revokeObjectURL(img.src);
+      res({ dataUrl: url, data: url.split(',')[1], mimeType: 'image/jpeg' });
+    };
+    img.onerror = rej; img.src = URL.createObjectURL(file);
+  });
+}
+</script>
+
+</head>
+<body data-req="" data-app="" data-u="" data-k="">
+<main id="view"></main>
+<script>
+/* ผู้อนุมัติ 1: อนุมัติเบิกเติมน้ำมันที่ปั๊ม (รถยนต์ / มอเตอร์ไซค์ / เบิกเติมสต็อก) */
+const MODE_LABEL = { FULL: 'เต็มถัง', LITER: 'ระบุลิตร', BAHT: 'ระบุบาท' };
+
+async function render(ctx) {
+  if (!ctx.reqId) {
+    return renderPendingList(ctx, { source: 'PUMP', status: 'PENDING' }, 'ไม่มีรายการรออนุมัติ',
+      r => `${esc(r.itemType)} ${esc(r.plate || '')} · ${thDate(r.reqDate)} ${esc(r.reqTime)}`);
+  }
+  const view = $('#view');
+  view.innerHTML = '<div class="empty">กำลังโหลด...</div>';
+  let data;
+  try { data = await api('getRequest', ctx.auth, ctx.reqId); }
+  catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">${esc(cleanErr(e))}</div>${backToListBtn()}</div>`; $('#toList').onclick = ctx.openList; return; }
+  const r = data.req;
+  if (r.source !== 'PUMP') {
+    view.innerHTML = `<div class="card"><div class="alert warn">คำขอ ${esc(r.reqId)} เป็นการเบิกจากสต็อก ไม่ใช่การเติมที่ปั๊ม</div>${backToListBtn()}</div>`;
+    $('#toList').onclick = ctx.openList; return;
+  }
+  let mode = r.amountMode || 'FULL';
+  const pending = r.status === 'PENDING';
+  view.innerHTML = `<div class="card">
+    ${reqHeader(r)}
+    <dl class="kv">
+      <dt>วันที่เติม</dt><dd>${thDate(r.reqDate)} เวลา ${esc(r.reqTime)} น.</dd>
+      <dt>ผู้ขอ</dt><dd>${esc(r.requesterName)}</dd>
+      <dt>ทะเบียนรถ</dt><dd>${esc(r.plate || '-')}<div class="small muted">${esc(r.itemType)} · ${esc(r.itemName)}</div></dd>
+      <dt>น้ำมัน</dt><dd>${fuelTag(r.fuelType)}</dd>
+      <dt>จำนวน</dt><dd class="big">${esc(amountText(r, !pending))}</dd>
+      ${r.note ? `<dt>หมายเหตุ</dt><dd>${esc(r.note)}</dd>` : ''}
+    </dl>
+    ${pending ? `
+    <div class="divider"></div>
+    <label class="f">จำนวนที่อนุมัติ</label>
+    <div class="seg" id="modeSeg">${Object.keys(MODE_LABEL).map(m => `<button type="button" data-m="${m}" class="${m === mode ? 'on' : ''}">${MODE_LABEL[m]}</button>`).join('')}</div>
+    <div class="field ${mode === 'FULL' ? 'hidden' : ''}" id="amtBox" style="margin-top:10px">
+      <label class="f" for="amt" id="amtLbl">จำนวน${mode === 'BAHT' ? 'เงิน (บาท)' : 'ลิตร'}</label>
+      <input id="amt" class="input" type="number" min="1" inputmode="decimal" value="${esc(r.amount)}"></div>
+    <div class="field" style="margin-top:10px"><label class="f" for="note">หมายเหตุ (จำเป็นเมื่อไม่อนุมัติ)</label>
+      <input id="note" class="input" placeholder="เช่น ให้เติม 500 บาทก่อน"></div>
+    <div class="btn-row"><button class="btn bad" id="btnNo">ไม่อนุมัติ</button><button class="btn ok" id="btnYes">อนุมัติ</button></div>
+    <p class="small muted" style="margin-bottom:0">เมื่ออนุมัติ ระบบจะแจ้งผู้ขอให้มารับเอกสารไปดำเนินการ</p>`
+    : processedNote(r) + backToListBtn()}
+  </div>`;
+
+  if (!pending) { $('#toList').onclick = ctx.openList; return; }
+  $$('#modeSeg [data-m]').forEach(b => b.onclick = () => {
+    mode = b.dataset.m;
+    $$('#modeSeg [data-m]').forEach(x => x.classList.toggle('on', x === b));
+    $('#amtBox').classList.toggle('hidden', mode === 'FULL');
+    $('#amtLbl').textContent = 'จำนวน' + (mode === 'BAHT' ? 'เงิน (บาท)' : 'ลิตร');
+  });
+  const act = async decision => {
+    const note = $('#note').value.trim(), amount = $('#amt').value;
+    if (decision === 'reject' && !note) return toast('กรุณาระบุเหตุผลที่ไม่อนุมัติ', 'bad');
+    if (decision === 'approve' && mode !== 'FULL' && !(+amount > 0)) return toast('กรุณาระบุจำนวน', 'bad');
+    const txt = mode === 'FULL' ? 'เต็มถัง' : amount + (mode === 'BAHT' ? ' บาท' : ' ลิตร');
+    const ok = await confirmBox(decision === 'approve' ? 'ยืนยันอนุมัติ' : 'ยืนยันไม่อนุมัติ',
+      `<p>คำขอ <b>${esc(r.reqId)}</b> · ${esc(r.requesterName)}<br>${esc(r.plate || r.itemName)}${decision === 'approve' ? ` · <b>${esc(txt)}</b>` : ''}</p>`,
+      decision === 'approve' ? 'อนุมัติ' : 'ไม่อนุมัติ', decision === 'approve' ? 'ok' : 'bad');
+    if (!ok) return;
+    try {
+      await call('approvePump', ctx.auth, r.reqId, decision, { amountMode: mode, amount, note });
+      view.innerHTML = `<div class="card">${decision === 'approve'
+        ? doneBox(true, 'อนุมัติเรียบร้อย', `${esc(r.reqId)} · ${esc(txt)}<br>แจ้งผู้ขอให้มารับเอกสารแล้ว`)
+        : doneBox(false, 'บันทึกไม่อนุมัติแล้ว', `${esc(r.reqId)} · แจ้งผู้ขอแล้ว`)}${backToListBtn()}</div>`;
+      $('#toList').onclick = ctx.openList;
+    } catch (e) {}
+  };
+  $('#btnYes').onclick = () => act('approve');
+  $('#btnNo').onclick = () => act('reject');
+}
+
+startApprovalPage({ page: 'approve_pump', title: 'อนุมัติเบิกเติมที่ปั๊ม', badge: '1', color: '#1565c0', render });
+</script>
+</body>
+</html>
