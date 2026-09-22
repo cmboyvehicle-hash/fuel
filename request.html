@@ -258,6 +258,9 @@ function doneBox(ok, title, sub) {
    2) เปิดลิงก์เอง → เลือกชื่อครั้งเดียว แล้วจำไว้ในเครื่อง
    ==================================================================== */
 const USER_KEY = 'fuel_user_v2';
+/** เก็บข้อมูลล่าสุดไว้ในเครื่อง — เปิดหน้าครั้งต่อไปแสดงได้ทันที แล้วค่อยอัปเดตจากระบบ */
+function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 function rememberUser(id) { try { localStorage.setItem(USER_KEY, id); } catch (e) {} }
 function rememberedUser() { try { return localStorage.getItem(USER_KEY) || ''; } catch (e) { return ''; } }
 
@@ -279,9 +282,17 @@ async function startApprovalPage(opt) {
     </div></header>`);
   const view = $('#view');
   view.innerHTML = '<div class="empty">กำลังโหลด...</div>';
-  let boot;
-  try { boot = await api('getApprovalBoot', opt.page); }
-  catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">โหลดข้อมูลไม่สำเร็จ: ${esc(cleanErr(e))}</div></div>`; return; }
+  // รายชื่อผู้มีสิทธิ์: ใช้ที่จำไว้ในเครื่องก่อน (ไม่ต้องรอ) แล้วอัปเดตเบื้องหลัง
+  const bkey = 'fuel.ab.' + opt.page;
+  let boot = lsGet(bkey);
+  const freshBoot = api('getApprovalBoot', opt.page).then(b => { lsSet(bkey, b); return b; });
+  if (boot && linkUser && !(boot.users || []).some(u => String(u.id) === String(linkUser))) boot = null;  // มีคนใหม่ → รอข้อมูลจริง
+  if (!boot) {
+    try { boot = await freshBoot; }
+    catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">โหลดข้อมูลไม่สำเร็จ: ${esc(cleanErr(e))}</div></div>`; return; }
+  } else {
+    freshBoot.then(b => { Object.assign(boot, b); if (boot.config.orgName) $('#apOrg').textContent = boot.config.orgName; }).catch(() => {});
+  }
   if (boot.config.orgName) $('#apOrg').textContent = boot.config.orgName;
 
   const ctx = { boot, reqId, appUrl, auth: null, me: null };
@@ -705,12 +716,31 @@ async function boot() {
     </div></header>`);
   const view = $('#view');
   view.innerHTML = '<div class="empty">กำลังโหลด...</div>';
-  try { S.boot = await api('getBootstrap'); }
-  catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">โหลดข้อมูลไม่สำเร็จ: ${esc(cleanErr(e))}</div></div>`; return; }
-  if (S.boot.config.orgName) $('#apOrg').textContent = S.boot.config.orgName;
-
-  setMe(linkUser) || setMe(rememberedUser());
-  renderForm();
+  // แสดงข้อมูลที่จำไว้ในเครื่องทันที (ไม่ต้องรอ Google) แล้วอัปเดตเป็นข้อมูลล่าสุดเมื่อได้รับ
+  const cached = lsGet('fuel.boot');
+  const start = b => {
+    S.boot = b;
+    if (b.config && b.config.orgName) $('#apOrg').textContent = b.config.orgName;
+    setMe(linkUser) || setMe(rememberedUser());
+    renderForm();
+  };
+  if (cached) { S.stale = true; start(cached); }
+  try {
+    const fresh = await api('getBootstrap');
+    lsSet('fuel.boot', fresh);
+    S.stale = false;
+    if (!cached) start(fresh);
+    else {
+      S.boot = fresh;
+      if (S.me) S.me = requesters().find(u => String(u.id) === String(S.me.id)) || null;
+      if (!S.me) setMe(linkUser) || setMe(rememberedUser());
+      renderForm(true);
+    }
+  } catch (e) {
+    S.stale = false;
+    if (!cached) view.innerHTML = `<div class="card"><div class="alert bad">โหลดข้อมูลไม่สำเร็จ: ${esc(cleanErr(e))}</div></div>`;
+    else { renderForm(true); toast('อัปเดตข้อมูลล่าสุดไม่สำเร็จ — แสดงข้อมูลที่จำไว้', 'bad'); }
+  }
 }
 
 /** จำว่าใครเป็นผู้ขอเบิก (เลือกจากช่องในฟอร์ม) */
@@ -721,13 +751,13 @@ function setMe(id) {
   return true;
 }
 
-function renderForm() {
+function renderForm(refresh) {
   if (!S.F) S.F = newForm();
   const F = S.F, s = S.boot.stock;
   $('#view').innerHTML = `
   <div class="card">
     <div class="card-head"><h2>แบบขอเบิกน้ำมัน</h2>
-      <span class="small muted">สต็อกเบนซิน: เบิกได้ <b style="color:var(--benzin)">${s.available}</b> ลิตร</span></div>
+      <span class="small muted">สต็อกเบนซิน: เบิกได้ <b style="color:var(--benzin)">${s.available}</b> ลิตร${S.stale ? ' · <span class="live"><i></i>กำลังอัปเดต</span>' : ''}</span></div>
     <div class="field"><label class="f" for="fWho">ผู้ขอเบิก</label>
       ${requesters().length ? `<select id="fWho" class="input">
         <option value="" ${S.me ? '' : 'selected'} disabled>— เลือกชื่อผู้ขอเบิก —</option>
@@ -749,7 +779,7 @@ function renderForm() {
   $('#fSubmit').onclick = submitRequest;
   renderItemPicker();
   renderAmount();
-  loadMyRequests();
+  if (refresh && S.myRows && S.me && S.myRowsFor === S.me.id) drawMy(S.myRows); else loadMyRequests();
 }
 
 /** เลือกประเภท แล้วเลือกรายการ (แบบเลื่อนลง) */
@@ -843,7 +873,7 @@ async function submitRequest() {
   if (!ok) return;
   try {
     const res = await call('createRequest', payload);
-    S.boot.stock = res.stock;
+    S.boot.stock = res.stock; lsSet('fuel.boot', S.boot);
     openModal('ส่งคำขอเรียบร้อย', `<div class="alert ok">เลขที่คำขอ <b>${esc(res.reqId)}</b><br>แจ้งผู้อนุมัติแล้ว${res.lineSent ? ' (' + res.lineSent + ' คน)' : ''}</div>
       <p class="muted small">ติดตามสถานะได้ที่ "คำขอล่าสุดของฉัน" ด้านล่าง และจะมีข้อความแจ้งเมื่อมีการอนุมัติ</p>`, [{ label: 'ตกลง', cls: 'primary' }]);
     S.F = newForm(); S.live = true;
@@ -867,8 +897,19 @@ function notifyRefillDlg() {
 async function loadMyRequests() {
   const box = $('#myReq'); if (!box) return;
   if (!S.me) { box.innerHTML = '<h3>คำขอล่าสุดของฉัน</h3><div class="empty small">เลือกชื่อผู้ขอเบิกด้านบนก่อน</div>'; return; }
+  const id = S.me.id, key = 'fuel.my.' + id;
+  const cached = lsGet(key);
+  if (cached) drawMy(cached);                       // แสดงของเดิมก่อน
   try {
-    const rows = await api('listMyRequests', S.me.id);
+    const rows = await api('listMyRequests', id);
+    lsSet(key, rows);
+    S.myRows = rows; S.myRowsFor = id;
+    if (S.me && S.me.id === id) drawMy(rows);
+  } catch (e) { if (!cached) box.innerHTML = '<h3>คำขอล่าสุดของฉัน</h3><div class="alert bad">' + esc(cleanErr(e)) + '</div>'; }
+}
+function drawMy(rows) {
+  const box = $('#myReq'); if (!box || !S.me) return;
+  {
     const mine = S.boot.stock.bottles.filter(b => b.status === 'OUT' && String(b.holderId) === String(S.me.id));
     box.innerHTML = `<h3>คำขอล่าสุดของฉัน</h3>
       ${mine.length ? `<div class="alert warn">ขวดที่อยู่กับคุณ: <b>${mine.map(b => esc(b.code)).join(', ')}</b> — ใช้เสร็จแล้วกรุณานำขวดเปล่ามาคืนที่สต็อก</div>` : ''}
@@ -876,7 +917,7 @@ async function loadMyRequests() {
       ${rows.map(r => `<tr><td>${esc(r.reqId)}</td><td>${thDate(r.reqDate)} ${esc(r.reqTime)}</td><td>${esc(r.itemName)} ${esc(r.plate || '')}</td>
         <td class="num">${esc(amountText(r))}</td><td>${esc(r.bottles || '')}</td><td>${stBadge(r)}${r.status === 'REJECTED' && r.approveNote ? `<div class="small muted">${esc(r.approveNote)}</div>` : ''}</td></tr>`).join('')}
       </tbody></table></div>` : '<div class="empty small">ยังไม่มีคำขอ</div>'}`;
-  } catch (e) { box.innerHTML = '<h3>คำขอล่าสุดของฉัน</h3><div class="alert bad">' + esc(cleanErr(e)) + '</div>'; }
+  }
 }
 
 boot();

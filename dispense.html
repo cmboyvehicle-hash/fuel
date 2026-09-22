@@ -258,6 +258,9 @@ function doneBox(ok, title, sub) {
    2) เปิดลิงก์เอง → เลือกชื่อครั้งเดียว แล้วจำไว้ในเครื่อง
    ==================================================================== */
 const USER_KEY = 'fuel_user_v2';
+/** เก็บข้อมูลล่าสุดไว้ในเครื่อง — เปิดหน้าครั้งต่อไปแสดงได้ทันที แล้วค่อยอัปเดตจากระบบ */
+function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 function rememberUser(id) { try { localStorage.setItem(USER_KEY, id); } catch (e) {} }
 function rememberedUser() { try { return localStorage.getItem(USER_KEY) || ''; } catch (e) { return ''; } }
 
@@ -279,9 +282,17 @@ async function startApprovalPage(opt) {
     </div></header>`);
   const view = $('#view');
   view.innerHTML = '<div class="empty">กำลังโหลด...</div>';
-  let boot;
-  try { boot = await api('getApprovalBoot', opt.page); }
-  catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">โหลดข้อมูลไม่สำเร็จ: ${esc(cleanErr(e))}</div></div>`; return; }
+  // รายชื่อผู้มีสิทธิ์: ใช้ที่จำไว้ในเครื่องก่อน (ไม่ต้องรอ) แล้วอัปเดตเบื้องหลัง
+  const bkey = 'fuel.ab.' + opt.page;
+  let boot = lsGet(bkey);
+  const freshBoot = api('getApprovalBoot', opt.page).then(b => { lsSet(bkey, b); return b; });
+  if (boot && linkUser && !(boot.users || []).some(u => String(u.id) === String(linkUser))) boot = null;  // มีคนใหม่ → รอข้อมูลจริง
+  if (!boot) {
+    try { boot = await freshBoot; }
+    catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">โหลดข้อมูลไม่สำเร็จ: ${esc(cleanErr(e))}</div></div>`; return; }
+  } else {
+    freshBoot.then(b => { Object.assign(boot, b); if (boot.config.orgName) $('#apOrg').textContent = boot.config.orgName; }).catch(() => {});
+  }
   if (boot.config.orgName) $('#apOrg').textContent = boot.config.orgName;
 
   const ctx = { boot, reqId, appUrl, auth: null, me: null };
