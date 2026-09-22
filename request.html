@@ -672,6 +672,34 @@ function compressImage(file) {
 }
 </script>
 
+<style>
+/* ===== ธีมหน้าขอเบิก: น้ำเงินเข้ม + แถบแดง ===== */
+:root{--primary:#0b2a5b;--primary-2:#123d7c;--accent:#0b2a5b;--red:#d62828}
+.ap-top{background:linear-gradient(135deg,#0b2a5b,#123d7c);border-bottom:4px solid var(--red)}
+.ap-badge{background:rgba(255,255,255,.14);box-shadow:inset 0 -3px 0 var(--red)}
+.card-head h2{position:relative;padding-left:12px}
+.card-head h2::before{content:"";position:absolute;left:0;top:.2em;bottom:.2em;width:5px;border-radius:3px;background:var(--red)}
+.btn.primary{background:var(--primary);box-shadow:inset 0 -3px 0 var(--red)}
+.btn.primary:hover{background:var(--primary-2)}
+.input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(11,42,91,.15)}
+/* รายการ / ทะเบียน แบบการ์ดมีไอคอน */
+.ilist{display:flex;flex-direction:column;gap:8px}
+.iopt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border:1.5px solid #d5dce6;border-radius:12px;background:#fff;cursor:pointer;font:inherit;color:inherit;position:relative;overflow:hidden}
+.iopt:hover{border-color:#9fb0c8}
+.iopt .iico{width:42px;height:42px;border-radius:11px;background:#e8eef7;color:var(--primary);display:grid;place-items:center;flex:none}
+.iopt .iico svg{width:26px;height:26px}
+.iopt .itx{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.iopt .itx b{font-weight:700;font-size:.98rem}
+.iopt .itx small{color:var(--muted);font-size:.8rem}
+.iopt .plate{display:inline-block;margin-top:3px;padding:1px 8px;border:1.5px solid #9aa9bf;border-radius:6px;font-size:.78rem;font-weight:700;color:#1e293b;background:#f8fafc;align-self:flex-start}
+.iopt .ichk{width:24px;height:24px;border-radius:50%;border:2px solid #c3cddb;flex:none;display:grid;place-items:center}
+.iopt .ichk svg{width:14px;height:14px;opacity:0}
+.iopt.on{border-color:var(--primary);background:#f1f5fb;box-shadow:inset 5px 0 0 var(--red)}
+.iopt.on .iico{background:var(--primary);color:#fff}
+.iopt.on .ichk{background:var(--primary);border-color:var(--primary);color:#fff}
+.iopt.on .ichk svg{opacity:1}
+.pick-empty{padding:14px;border:1.5px dashed #cfd8e3;border-radius:12px;color:var(--muted);text-align:center;font-size:.9rem}
+</style>
 </head>
 <body data-app="" data-u="" data-k="">
 <main id="view"></main>
@@ -704,7 +732,7 @@ function requesters() {
 }
 
 async function boot() {
-  document.documentElement.style.setProperty('--accent', '#1f4e79');
+  document.documentElement.style.setProperty('--accent', '#0b2a5b');
   const linkUser = tplVal(document.body.dataset.u) || qsVal('u'), linkToken = tplVal(document.body.dataset.k) || qsVal('k');
   document.body.insertAdjacentHTML('afterbegin', `
     <header class="ap-top"><div class="ap-top-in">
@@ -782,7 +810,24 @@ function renderForm(refresh) {
   if (refresh && S.myRows && S.me && S.myRowsFor === S.me.id) drawMy(S.myRows); else loadMyRequests();
 }
 
-/** เลือกประเภท แล้วเลือกรายการ (แบบเลื่อนลง) */
+/** ไอคอนตามประเภทรถ / เครื่อง (วาดเอง แบบเส้น) */
+function itemIcon(type, name) {
+  const t = String(type || '') + ' ' + String(name || '');
+  const svg = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  if (/จักรยานยนต์|มอเตอร์ไซค์/.test(t))   // รถจักรยานยนต์
+    return svg('<circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M5.5 16.5l4-6h5l4 6"/><path d="M14.5 10.5l-1.5-3.5h-2.5"/><path d="M16 7h3"/>');
+  if (/เติมสต็อก|แกลลอน|สต็อก/.test(t))      // แกลลอนน้ำมัน
+    return svg('<path d="M6 7h9l3 3v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z"/><path d="M8 7V4h5v3"/><path d="M9 12l4 4M13 12l-4 4"/>');
+  if (/รถตัดหญ้า/.test(t))                      // รถตัดหญ้านั่งขับ
+    return svg('<circle cx="7" cy="16.5" r="3.5"/><circle cx="18" cy="17.5" r="2.5"/><path d="M10.5 16.5h5"/><path d="M4 13l2-5h6l2 5"/><path d="M9 8V5h2"/><path d="M14 13h6v2"/>');
+  if (/ตัดหญ้า/.test(t))                        // เครื่องตัดหญ้าสะพาย
+    return svg('<rect x="2" y="2" width="5.5" height="4.5" rx="1.2"/><path d="M6.5 6l10 10"/><path d="M7.5 11.5l4.5-4.5"/><path d="M6.8 12.2l-1 1M12.7 6.3l1-1"/><circle cx="17.5" cy="17.5" r="2.2"/><path d="M13.5 21.5l8-8"/><path d="M2.5 21.5l1.5-3 1.5 3M7 21.5l1-2 1 2"/>');
+  if (/รถ|ยนต์|กระบะ|ตู้/.test(t))              // รถยนต์
+    return svg('<path d="M5 17H3v-4.5l2-5A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.9 1.5l2 5V17h-2"/><path d="M3 12.5h18"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/><path d="M9.5 17h5"/>');
+  return svg('<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16"/><path d="M3 21h13"/><path d="M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/><rect x="7" y="6" width="5" height="4" rx="1"/>');  // หัวจ่าย
+}
+
+/** เลือกประเภท แล้วเลือกรายการ (การ์ดมีไอคอน) */
 function renderItemPicker() {
   const F = S.F, items = S.boot.items;
   const types = [...new Set(items.map(i => i.type))];
@@ -790,15 +835,19 @@ function renderItemPicker() {
   const list = items.filter(i => i.type === F.itemType);
   const cur = items.find(i => i.id === F.itemId);
   $('#itemPicker').innerHTML = `
-    <div class="grid2">
-      <div class="field"><label class="f" for="fType">ประเภทรถ / เครื่อง</label>
-        <select id="fType" class="input"><option value="">— เลือกประเภท —</option>
-          ${types.map(t => `<option value="${esc(t)}" ${t === F.itemType ? 'selected' : ''}>${esc(t)} (${items.filter(i => i.type === t).length})</option>`).join('')}
-        </select></div>
-      <div class="field"><label class="f" for="fItem">รายการ / ทะเบียน</label>
-        <select id="fItem" class="input" ${F.itemType ? '' : 'disabled'}><option value="">${F.itemType ? '— เลือกรายการ —' : 'เลือกประเภทก่อน'}</option>
-          ${list.map(i => `<option value="${esc(i.id)}" ${i.id === F.itemId ? 'selected' : ''}>${esc(i.order)}. ${esc(i.name)}${i.plate ? ' — ทะเบียน ' + esc(i.plate) : ''}</option>`).join('')}
-        </select></div>
+    <div class="field"><label class="f" for="fType">ประเภทรถ / เครื่อง</label>
+      <select id="fType" class="input"><option value="">— เลือกประเภท —</option>
+        ${types.map(t => `<option value="${esc(t)}" ${t === F.itemType ? 'selected' : ''}>${esc(t)} (${items.filter(i => i.type === t).length})</option>`).join('')}
+      </select></div>
+    <div class="field"><label class="f">รายการ / ทะเบียน</label>
+      ${!F.itemType ? '<div class="pick-empty">เลือกประเภทรถ / เครื่อง ก่อน</div>'
+        : `<div class="ilist" id="fItem" role="radiogroup" aria-label="รายการ / ทะเบียน">
+          ${list.map(i => `<button type="button" class="iopt ${i.id === F.itemId ? 'on' : ''}" data-item="${esc(i.id)}" role="radio" aria-checked="${i.id === F.itemId}">
+            <span class="iico">${itemIcon(i.type, i.name)}</span>
+            <span class="itx"><b>${esc(i.name)}</b>${i.plate ? `<span class="plate">${esc(i.plate)}</span>` : `<small>${esc(i.fuelType || '')}${i.source === 'STOCK' ? ' · เบิกจากสต็อก' : ' · เติมที่ปั๊ม'}</small>`}</span>
+            <span class="ichk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+          </button>`).join('')}
+        </div>`}
     </div>
     ${cur ? `<div style="margin:-6px 0 8px;display:flex;gap:6px;flex-wrap:wrap">${fuelTag(cur.fuelType)}${srcTag(cur.source)}</div>` : ''}`;
   $('#fType').onchange = e => {
@@ -807,7 +856,7 @@ function renderItemPicker() {
     F.itemId = l.length === 1 ? l[0].id : '';
     renderItemPicker(); renderAmount();
   };
-  $('#fItem').onchange = e => { F.itemId = e.target.value; renderItemPicker(); renderAmount(); };
+  $$('[data-item]').forEach(b => b.onclick = () => { F.itemId = b.dataset.item; renderItemPicker(); renderAmount(); });
 }
 
 function renderAmount() {
