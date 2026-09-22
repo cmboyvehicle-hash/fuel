@@ -146,6 +146,8 @@ textarea.input{min-height:70px;resize:vertical}
 .chip{display:inline-flex;align-items:center;gap:4px;background:#f3e8fb;color:var(--purple);border-radius:999px;padding:3px 6px 3px 10px;font-weight:700;font-size:.85rem}
 .chip button{border:0;background:rgba(0,0,0,.08);border-radius:50%;width:20px;height:20px;cursor:pointer;line-height:1}
 .photo-prev{max-width:100%;max-height:220px;border-radius:10px;display:block;margin-top:8px}
+.pick2{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}.pick2 .btn{flex:1 1 140px;display:inline-flex;align-items:center;justify-content:center;gap:6px;position:relative;cursor:pointer}.pick2 svg{width:18px;height:18px;flex:none}
+.vh{position:absolute!important;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
 .subtabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
 .empty{text-align:center;color:var(--muted);padding:26px 10px}
 
@@ -1179,7 +1181,10 @@ function dispWait(wait, s) {
         <div class="chips" style="margin-bottom:8px">${sc.map(c => `<span class="chip">${esc(c)}</span>`).join('') || '<span class="small muted">ยังไม่ได้ยิง QR</span>'}</div>
         <button class="btn orange sm" data-scan>เปิดกล้องยิง QR</button>
         <label class="f" style="margin-top:14px">2) รูปถ่ายตอนจ่าย <span class="muted" style="font-weight:400">(ไม่บังคับ)</span></label>
-        <input type="file" accept="image/${'*'}" capture="environment" class="input" data-photo>
+        <div class="pick2">
+          <label class="btn ghost sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>ถ่ายรูป<input type="file" class="vh" data-photo accept="image/${'*'}" capture="environment"></label>
+          <label class="btn ghost sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>เลือกไฟล์ภาพ<input type="file" class="vh" data-photo accept="image/${'*'}"></label>
+        </div>
         ${ph ? `<img class="photo-prev" src="${ph.dataUrl}" alt="รูปน้ำมันที่จ่าย">` : ''}
         <input class="input" data-note placeholder="หมายเหตุผู้จ่าย (ถ้ามี)" style="margin-top:10px">
         <button class="btn ok block" style="margin-top:12px" data-go-disp ${sc.length === need ? '' : 'disabled'}>3) จ่ายน้ำมันแล้ว — ตัดสต็อก</button>
@@ -1200,8 +1205,9 @@ function dispWait(wait, s) {
       },
       onDone: codes => { DISP.scanned[reqId] = codes; dispWait(wait, s); }
     });
-    $('[data-photo]', card).onchange = async e => {
-      const f = e.target.files[0]; if (!f) return;
+    const onPhoto = async e => {
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      if (f.type && !/^image\//.test(f.type)) return toast('กรุณาเลือกไฟล์รูปภาพ (JPG / PNG)', 'bad');
       loading(true);
       try {
         const out = await photoWithCodes(f, need);          // รูปแนบเป็นหลักฐาน + ถ้าอ่าน QR ได้ก็เพิ่มให้เลย
@@ -1219,9 +1225,10 @@ function dispWait(wait, s) {
         if (out.codes.length) toast('อ่าน QR จากรูปได้ ' + out.codes.length + ' ขวด' + (bad.length ? ' (ข้าม ' + bad.length + ')' : ''), bad.length ? '' : 'ok');
         else toast('แนบรูปแล้ว (อ่าน QR จากรูปไม่ได้ ให้ยิง QR ด้วยกล้อง)', '');
         dispWait(wait, s);
-      } catch (err) { toast('อ่านรูปไม่ได้', 'bad'); }
+      } catch (err) { toast('อ่านรูปนี้ไม่ได้ — ลองไฟล์ JPG หรือ PNG', 'bad'); }
       finally { loading(false); }
     };
+    $$('[data-photo]', card).forEach(i => i.onchange = onPhoto);
     $('[data-go-disp]', card).onclick = async () => {
       const codes = DISP.scanned[reqId] || [], note = $('[data-note]', card).value;
       const ph2 = DISP.photo[reqId];

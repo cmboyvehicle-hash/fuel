@@ -76,6 +76,8 @@ label.f{display:block;font-size:.88rem;font-weight:600;margin-bottom:4px;color:#
 .chip{display:inline-flex;align-items:center;gap:4px;background:#f3e8fb;color:var(--purple);border-radius:999px;padding:4px 7px 4px 11px;font-weight:700}
 .chip button{border:0;background:rgba(0,0,0,.08);border-radius:50%;width:22px;height:22px;cursor:pointer;line-height:1}
 .photo-prev{max-width:100%;max-height:260px;border-radius:12px;display:block;margin-top:8px}
+.pick2{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}.pick2 .btn{flex:1 1 140px;display:inline-flex;align-items:center;justify-content:center;gap:6px;position:relative;cursor:pointer}.pick2 svg{width:18px;height:18px;flex:none}
+.vh{position:absolute!important;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
 .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
 @media(max-width:520px){.tiles{grid-template-columns:repeat(2,1fr)}}
 .tile{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
@@ -699,7 +701,10 @@ async function render(ctx) {
 
     <div class="divider"></div>
     <label class="f">2) รูปถ่ายตอนจ่าย <span class="muted" style="font-weight:400">(ไม่บังคับ — ถ้าแนบ ระบบจะส่งรูปให้ผู้ขอด้วย)</span></label>
-    <input type="file" id="photo" accept="image/${'*'}" capture="environment" class="input">
+    <div class="pick2">
+      <label class="btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>ถ่ายรูป<input type="file" class="vh" data-photo accept="image/${'*'}" capture="environment"></label>
+      <label class="btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>เลือกไฟล์ภาพ<input type="file" class="vh" data-photo accept="image/${'*'}"></label>
+    </div>
     <div id="photoBox"></div>
 
     <div class="field" style="margin-top:14px"><label class="f" for="note">หมายเหตุผู้จ่าย (ถ้ามี)</label>
@@ -720,16 +725,19 @@ async function render(ctx) {
     }
   });
 
-  $('#photo').onchange = async e => {
-    const f = e.target.files[0]; if (!f) return;
+  // รูปตอนจ่าย: ถ่ายจากกล้อง หรือเลือกไฟล์ภาพที่มีอยู่ในเครื่อง ก็ได้
+  const onPhoto = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    if (f.type && !/^image\//.test(f.type)) return toast('กรุณาเลือกไฟล์รูปภาพ (JPG / PNG)', 'bad');
     loading(true);
     try {
       photo = await compressImage(f);
       $('#photoBox').innerHTML = `<img class="photo-prev" src="${photo.dataUrl}" alt="รูปที่แนบ"><button type="button" class="linkbtn" id="rmPhoto">เอารูปออก</button>`;
-      $('#rmPhoto').onclick = () => { photo = null; $('#photo').value = ''; $('#photoBox').innerHTML = ''; };
-    } catch (err) { toast('อ่านรูปไม่ได้', 'bad'); }
+      $('#rmPhoto').onclick = () => { photo = null; $('#photoBox').innerHTML = ''; };
+    } catch (err) { toast('อ่านรูปนี้ไม่ได้ — ลองไฟล์ JPG หรือ PNG', 'bad'); }
     finally { loading(false); }
   };
+  $$('[data-photo]').forEach(i => i.onchange = onPhoto);
 
   $('#btnGo').onclick = async () => {
     const note = $('#note').value.trim();
