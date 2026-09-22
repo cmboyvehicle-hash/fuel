@@ -682,10 +682,12 @@ async function render(ctx) {
       <input id="liters" type="number" inputmode="numeric" value="${Math.max(0, Math.min(+r.amount, maxGive))}" min="${cfg.stockMin}" max="${maxGive}">
       <button type="button" id="inc" aria-label="เพิ่ม">+</button></div>
     ${maxGive < cfg.stockMin ? '<div class="alert bad">น้ำมันในสต็อกไม่พอสำหรับคำขอนี้</div>' : ''}
+    <div class="field" style="margin-top:14px"><label class="f" for="disp">ส่งเรื่องให้ผู้จ่ายสต็อก</label>
+      ${dispPicker(data.dispensers || [])}</div>
     <div class="field" style="margin-top:14px"><label class="f" for="note">หมายเหตุ (จำเป็นเมื่อไม่อนุมัติ)</label>
       <input id="note" class="input" placeholder="เช่น จ่ายให้ 2 ลิตรก่อน"></div>
     <div class="btn-row"><button class="btn bad" id="btnNo">ไม่อนุมัติ</button><button class="btn ok" id="btnYes" ${maxGive < cfg.stockMin ? 'disabled' : ''}>อนุมัติ</button></div>
-    <p class="small muted" style="margin-bottom:0">เมื่ออนุมัติ ระบบจะส่งเรื่องให้ผู้จ่ายสต็อก</p>`
+    <p class="small muted" style="margin-bottom:0">เมื่ออนุมัติ ระบบจะส่ง LINE ถึงผู้จ่ายสต็อกที่เลือก</p>`
     : processedNote(r) + backToListBtn()}
   </div>`;
 
@@ -696,22 +698,36 @@ async function render(ctx) {
   $('#inc').onclick = () => inp.value = clamp(+inp.value + 1);
   const act = async decision => {
     const note = $('#note').value.trim(), n = +inp.value;
+    const dsel = $('#disp'), dispId = dsel ? dsel.value : '';
+    const disp = (data.dispensers || []).find(d => d.id === dispId);
     if (decision === 'reject' && !note) return toast('กรุณาระบุเหตุผลที่ไม่อนุมัติ', 'bad');
+    if (decision === 'approve' && dsel && !dispId) { dsel.focus(); return toast('กรุณาเลือกผู้จ่ายสต็อก', 'bad'); }
     if (decision === 'approve' && !(n >= cfg.stockMin && n <= maxGive)) return toast(`จำนวนต้องอยู่ระหว่าง ${cfg.stockMin}-${maxGive} ลิตร`, 'bad');
     const ok = await confirmBox(decision === 'approve' ? 'ยืนยันอนุมัติเบิกจากสต็อก' : 'ยืนยันไม่อนุมัติ',
-      `<p>คำขอ <b>${esc(r.reqId)}</b> · ${esc(r.requesterName)}<br>${esc(r.itemName)}${decision === 'approve' ? ` · จ่าย <b>${n} ลิตร</b>` : ''}</p>`,
+      `<p>คำขอ <b>${esc(r.reqId)}</b> · ${esc(r.requesterName)}<br>${esc(r.itemName)}${decision === 'approve' ? ` · จ่าย <b>${n} ลิตร</b>` : ''}</p>
+       ${decision === 'approve' && disp ? `<p>ส่งเรื่องให้ <b>${esc(disp.name)}</b></p>` : ''}`,
       decision === 'approve' ? 'อนุมัติ' : 'ไม่อนุมัติ', decision === 'approve' ? 'ok' : 'bad');
     if (!ok) return;
     try {
-      await call('approveStock', ctx.auth, r.reqId, decision, n, note);
+      const res = await call('approveStock', ctx.auth, r.reqId, decision, n, note, dispId);
       view.innerHTML = `<div class="card">${decision === 'approve'
-        ? doneBox(true, 'อนุมัติเรียบร้อย', `${esc(r.reqId)} · ${n} ลิตร<br>ส่งเรื่องให้ผู้จ่ายสต็อกแล้ว`)
+        ? doneBox(true, 'อนุมัติเรียบร้อย', `${esc(r.reqId)} · ${n} ลิตร<br>ส่งเรื่องให้ ${esc((res && res.sentTo) || 'ผู้จ่ายสต็อก')} แล้ว`)
         : doneBox(false, 'บันทึกไม่อนุมัติแล้ว', `${esc(r.reqId)} · แจ้งผู้ขอแล้ว`)}${backToListBtn()}</div>`;
       $('#toList').onclick = ctx.openList;
     } catch (e) {}
   };
   $('#btnYes').onclick = () => act('approve');
   $('#btnNo').onclick = () => act('reject');
+}
+
+/** ช่องเลือกผู้จ่ายสต็อก — มีคนเดียวเลือกให้เลย, หลายคนต้องเลือก */
+function dispPicker(list) {
+  if (!list.length) return '<div class="alert warn" style="margin:0">ยังไม่มีผู้ใช้บทบาทผู้จ่ายสต็อก (dispenser) — ระบบจะส่งหาผู้ดูแลระบบ</div>';
+  const one = list.length === 1;
+  return `<select id="disp" class="input">
+    ${one ? '' : '<option value="" selected disabled>— เลือกผู้จ่ายสต็อก —</option>'}
+    ${list.map(d => `<option value="${esc(d.id)}" ${one ? 'selected' : ''}>${esc(d.name)}${d.position ? ' — ' + esc(d.position) : ''}${d.hasLine ? '' : ' (ยังไม่ผูก LINE)'}</option>`).join('')}
+  </select>`;
 }
 
 startApprovalPage({ page: 'approve_stock', title: 'อนุมัติเบิกจากสต็อก', badge: '2', color: '#e65100', render });

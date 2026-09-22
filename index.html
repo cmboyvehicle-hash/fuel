@@ -1079,6 +1079,12 @@ function historyCard(title, rows) {
 /* =====================================================================
    PAGE: ผู้อนุมัติ 2 — เบิกจากสต็อก
    ===================================================================== */
+/** ผู้จ่ายสต็อกทั้งหมด (ถ้าไม่มีบทบาท dispenser ใช้ผู้ดูแลระบบ) */
+function dispList() {
+  const us = (S.boot && S.boot.users) || [];
+  const d = us.filter(u => (u.roles || []).includes('dispenser'));
+  return d.length ? d : us.filter(u => (u.roles || []).includes('admin'));
+}
 async function pageStock() {
   $('#view').innerHTML = '<div class="empty">กำลังโหลด...</div>';
   let pend, done, s;
@@ -1109,6 +1115,8 @@ async function pageStock() {
       <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
         <label class="f">จำนวนที่จะจ่ายให้ (ลิตร) — จ่ายได้สูงสุด ${maxGive}</label>
         <div class="stepper"><button type="button" data-d="-1" aria-label="ลด">−</button><input class="st-n" type="number" value="${Math.min(+r.amount, maxGive)}" min="${cfg.stockMin}" max="${maxGive}"><button type="button" data-d="1" aria-label="เพิ่ม">+</button></div>
+        <label class="f" style="margin-top:10px">ส่งเรื่องให้ผู้จ่ายสต็อก</label>
+        ${(() => { const ds = dispList(); return ds.length ? `<select class="input st-disp">${ds.length > 1 ? '<option value="" selected disabled>— เลือกผู้จ่ายสต็อก —</option>' : ''}${ds.map(d => `<option value="${esc(d.id)}" ${ds.length === 1 ? 'selected' : ''}>${esc(d.name)}${d.position ? ' — ' + esc(d.position) : ''}</option>`).join('')}</select>` : '<div class="small muted">ยังไม่มีผู้ใช้บทบาทผู้จ่ายสต็อก — ระบบจะส่งหาผู้ดูแลระบบ</div>'; })()}
         <input class="input st-note" placeholder="หมายเหตุ / เหตุผล (ถ้าไม่อนุมัติ)" style="margin-top:8px">
         <div class="btn-row" style="margin-top:10px"><button class="btn ok" data-act="approve" ${maxGive < cfg.stockMin ? 'disabled' : ''}>อนุมัติ</button><button class="btn bad" data-act="reject">ไม่อนุมัติ</button></div>
         ${maxGive < cfg.stockMin ? '<div class="alert bad">สต็อกไม่พอสำหรับคำขอนี้</div>' : ''}
@@ -1122,13 +1130,16 @@ async function pageStock() {
     $$('[data-d]', card).forEach(b => b.onclick = () => { inp.value = Math.max(cfg.stockMin, Math.min(max, (+inp.value || 0) + +b.dataset.d)); });
     $$('[data-act]', card).forEach(b => b.onclick = async () => {
       const act = b.dataset.act, note = $('.st-note', card).value.trim(), n = +inp.value;
+      const dsel = $('.st-disp', card), dispId = dsel ? dsel.value : '';
+      const disp = dispList().find(d => d.id === dispId);
       if (act === 'reject' && !note) return toast('กรุณาระบุเหตุผลที่ไม่อนุมัติ', 'bad');
+      if (act === 'approve' && dsel && !dispId) { dsel.focus(); return toast('กรุณาเลือกผู้จ่ายสต็อก', 'bad'); }
       if (act === 'approve' && !(n >= cfg.stockMin && n <= max)) return toast(`จำนวนต้องอยู่ระหว่าง ${cfg.stockMin}-${max} ลิตร`, 'bad');
       const ok = await confirmBox(act === 'approve' ? 'ยืนยันอนุมัติเบิกจากสต็อก' : 'ยืนยันไม่อนุมัติ',
-        `<p>คำขอ <b>${esc(reqId)}</b>${act === 'approve' ? ` จ่าย <b>${n} ลิตร</b>` : ''}</p><p class="small muted">${act === 'approve' ? 'ระบบจะแจ้งเตือน (LINE/Telegram) ถึงผู้จ่ายสต็อก' : 'ระบบจะแจ้งเตือน (LINE/Telegram) ผู้ขอ'}</p>`,
+        `<p>คำขอ <b>${esc(reqId)}</b>${act === 'approve' ? ` จ่าย <b>${n} ลิตร</b>` : ''}</p><p class="small muted">${act === 'approve' ? 'ระบบจะแจ้งเตือน (LINE/Telegram) ถึง ' + esc(disp ? disp.name : 'ผู้จ่ายสต็อก') : 'ระบบจะแจ้งเตือน (LINE/Telegram) ผู้ขอ'}</p>`,
         act === 'approve' ? 'อนุมัติ' : 'ไม่อนุมัติ', act === 'approve' ? 'ok' : 'bad');
       if (!ok) return;
-      try { await call('approveStock', S.auth, reqId, act, n, note); toast(act === 'approve' ? 'อนุมัติแล้ว ส่งเรื่องถึงผู้จ่ายสต็อก' : 'บันทึกไม่อนุมัติแล้ว', 'ok'); refreshCounts(); pageStock(); } catch (e) {}
+      try { const res = await call('approveStock', S.auth, reqId, act, n, note, dispId); toast(act === 'approve' ? 'อนุมัติแล้ว ส่งเรื่องถึง ' + ((res && res.sentTo) || 'ผู้จ่ายสต็อก') : 'บันทึกไม่อนุมัติแล้ว', 'ok'); refreshCounts(); pageStock(); } catch (e) {}
     });
   });
 }
@@ -1174,6 +1185,7 @@ function dispWait(wait, s) {
         <dt>ผู้ขอ</dt><dd>${esc(r.requesterName)}</dd>
         <dt>ประเภท</dt><dd>${esc(r.itemType)} · ${esc(r.itemName)}</dd>
         <dt>จำนวนจ่าย</dt><dd class="big" style="color:var(--benzin)">${need} ลิตร (${need} ขวด)</dd>
+        ${r.assignedName ? `<dt>ผู้จ่ายที่รับผิดชอบ</dt><dd>${esc(r.assignedName)}</dd>` : ''}
         ${r.approveNote ? `<dt>หมายเหตุ</dt><dd>${esc(r.approveNote)}</dd>` : ''}
       </dl>
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
@@ -1673,14 +1685,17 @@ const Mock = (() => {
       } else { r.status = 'REJECTED'; line([user(r.requesterId)], 'ไม่อนุมัติคำขอเบิกน้ำมัน', '#C62828', base(r).concat([['เหตุผล', r.approveNote]])); }
       return { ok:true, status:r.status };
     },
-    approveStock(a, id, decision, liters, note) {
+    approveStock(a, id, decision, liters, note, dispenserId) {
       const u = auth(a, ['approver_stock']), r = findReq(id);
+      const tg = dispenserId ? DB.users.find(x => x.id === dispenserId) : null;
       if (r.source !== 'STOCK' || r.status !== 'PENDING') throw new Error('รายการนี้ถูกดำเนินการไปแล้ว');
       Object.assign(r, { approverName:u.name, approvedAt:now(), approveNote:note || '' });
       if (decision === 'approve') {
         const s = stock(); if (+liters > s.available + +r.amount) throw new Error('สต็อกไม่พอ');
         r.approvedAmount = +liters; r.status = 'APPROVED';
-        line(roleUsers('dispenser'), 'อนุมัติเบิกจากสต็อก - รอจ่ายน้ำมัน', '#E65100', base(r).concat([['จำนวนที่อนุมัติ', liters + ' ลิตร'], ['ผู้อนุมัติ', u.name]]), 'รับเรื่อง / จ่ายน้ำมัน');
+        if (tg) { r.assignedId = tg.id; r.assignedName = tg.name; }
+        line(tg ? [tg] : roleUsers('dispenser'), 'อนุมัติเบิกจากสต็อก - รอจ่ายน้ำมัน', '#E65100', base(r).concat([['จำนวนที่อนุมัติ', liters + ' ลิตร'], ['ผู้อนุมัติ', u.name]]).concat(tg ? [['ผู้จ่ายที่รับผิดชอบ', tg.name]] : []), 'รับเรื่อง / จ่ายน้ำมัน');
+        return { ok:true, status:r.status, sentTo: tg ? tg.name : 'ผู้จ่ายสต็อกทุกคน', stock:stock() };
       } else { r.status = 'REJECTED'; line([user(r.requesterId)], 'ไม่อนุมัติคำขอเบิกจากสต็อก', '#C62828', base(r).concat([['เหตุผล', r.approveNote]])); }
       return { ok:true, status:r.status, stock:stock() };
     },

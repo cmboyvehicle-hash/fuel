@@ -690,6 +690,7 @@ async function render(ctx) {
       <dt>ผู้ขอ</dt><dd>${esc(r.requesterName)}</dd>
       <dt>ประเภท</dt><dd>${esc(r.itemType)}<div class="small muted">${esc(r.itemName)}</div></dd>
       <dt>ผู้อนุมัติ</dt><dd>${esc(r.approverName)}<div class="small muted">${thDateTime(r.approvedAt)}</div></dd>
+      ${r.assignedName ? `<dt>ผู้จ่ายที่รับผิดชอบ</dt><dd><b>${esc(r.assignedName)}</b></dd>` : ''}
       <dt>จำนวนจ่าย</dt><dd class="big" style="color:var(--benzin)">${need} ลิตร (${need} ขวด)</dd>
       ${r.approveNote ? `<dt>หมายเหตุ</dt><dd>${esc(r.approveNote)}</dd>` : ''}
     </dl>
