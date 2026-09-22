@@ -161,13 +161,29 @@ function qsVal(k) { try { return tplVal(new URLSearchParams(location.search).get
 function tplVal(v) { return /^[A-Za-z0-9_:\/.?=&%-]*$/.test(v || '') ? (v || '') : ''; } // กันค่า template ที่ยังไม่ถูกแทน
 
 const API_URL = (window.FUEL_API || '');   // ตั้งค่าใน config.js เมื่อโฮสต์หน้าเว็บนอก Apps Script (เช่น Netlify)
+/** เรียก Apps Script ผ่าน fetch — บางครั้ง Google ตอบกลับเป็นหน้า HTML แทนข้อมูล (เกิดเป็นระยะ)
+ *  จึงลองใหม่อัตโนมัติสูงสุด 4 ครั้ง โดยใช้รหัสคำสั่ง (op) เดิม ระบบจะไม่บันทึกซ้ำ */
+async function apiFetch(fn, args) {
+  const op = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  const body = JSON.stringify({ fn: fn, args: args, op: op });
+  for (let i = 0; i < 4; i++) {
+    if (i) await new Promise(r => setTimeout(r, 800 * i));
+    let txt, j;
+    try {
+      const r = await fetch(API_URL, { method: 'POST', redirect: 'follow', credentials: 'omit', cache: 'no-store',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain = ไม่มี preflight
+        body: body });
+      txt = await r.text();
+    } catch (e) { continue; }                 // เน็ตหลุด / Google ไม่ตอบ → ลองใหม่
+    try { j = JSON.parse(txt); } catch (e) { continue; }   // ได้หน้า HTML แทน JSON → ลองใหม่
+    if (!j.ok) throw new Error(j.error || 'เรียกระบบไม่สำเร็จ');
+    return j.result;
+  }
+  throw new Error('เชื่อมต่อระบบไม่สำเร็จ (Google ตอบกลับไม่ทัน) กรุณาลองใหม่อีกครั้ง');
+}
 function api(fn, ...args) {
   if (IS_GAS) return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(e => rej(e && e.message ? e : new Error(String(e))))[fn](...args));
-  if (API_URL) return fetch(API_URL, {
-      method: 'POST', redirect: 'follow',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain = ไม่มี preflight
-      body: JSON.stringify({ fn: fn, args: args })
-    }).then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.error || 'เรียกระบบไม่สำเร็จ'); return j.result; });
+  if (API_URL) return apiFetch(fn, args);
   if (window.Mock && Mock[fn]) return new Promise((res, rej) => setTimeout(() => { try { res(JSON.parse(JSON.stringify(Mock[fn](...args)))); } catch (e) { rej(e); } }, 200));
   return Promise.reject(new Error('หน้านี้ต้องเปิดผ่าน Web App ของ Google Apps Script'));
 }
