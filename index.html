@@ -284,12 +284,16 @@ async function apiFetch(fn, args) {
   for (let i = 0; i < 4; i++) {
     if (i) await new Promise(r => setTimeout(r, 800 * i));
     let txt, j;
+    // รอแต่ละรอบไม่เกิน 20 วินาที (บางครั้ง Google ค้างนานแล้วตอบ 404) — ตัดแล้วลองใหม่ด้วยรหัสคำสั่งเดิม
+    const ctl = window.AbortController ? new AbortController() : null;
+    const tm = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
     try {
       const r = await fetch(API_URL, { method: 'POST', redirect: 'follow', credentials: 'omit', cache: 'no-store',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain = ไม่มี preflight
-        body: body });
+        body: body, signal: ctl ? ctl.signal : undefined });
       txt = await r.text();
-    } catch (e) { continue; }                 // เน็ตหลุด / Google ไม่ตอบ → ลองใหม่
+    } catch (e) { continue; }                 // เน็ตหลุด / Google ไม่ตอบ / เกินเวลา → ลองใหม่
+    finally { if (tm) clearTimeout(tm); }
     try { j = JSON.parse(txt); } catch (e) { continue; }   // ได้หน้า HTML แทน JSON → ลองใหม่
     if (!j.ok) throw new Error(j.error || 'เรียกระบบไม่สำเร็จ');
     return j.result;
