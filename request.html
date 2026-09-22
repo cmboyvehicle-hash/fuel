@@ -724,13 +724,6 @@ function renderForm() {
   <div class="card">
     <div class="card-head"><h2>แบบขอเบิกน้ำมัน</h2>
       <span class="small muted">สต็อกเบนซิน: เบิกได้ <b style="color:var(--benzin)">${s.available}</b> ลิตร</span></div>
-    <div class="grid2">
-      <div class="field"><label class="f" for="fDate">วันที่เบิก <span class="live ${S.live ? '' : 'hidden'}" id="liveTag"><i></i>ปัจจุบัน</span></label>
-        <input id="fDate" type="date" class="input" value="${esc(F.reqDate)}"></div>
-      <div class="field"><label class="f" for="fTime">เวลา</label>
-        <input id="fTime" type="time" class="input" value="${esc(F.reqTime)}">
-        <button class="linkbtn ${S.live ? 'hidden' : ''}" id="liveReset">ใช้วัน-เวลาปัจจุบัน</button></div>
-    </div>
     <div class="field"><label class="f" for="fWho">ผู้ขอเบิก</label>
       ${requesters().length ? `<select id="fWho" class="input">
         <option value="" ${S.me ? '' : 'selected'} disabled>— เลือกชื่อผู้ขอเบิก —</option>
@@ -746,22 +739,10 @@ function renderForm() {
   </div>
   <div class="card" id="myReq"><h3>คำขอล่าสุดของฉัน</h3><div class="empty small">กำลังโหลด...</div></div>`;
 
-  const stopLive = () => { if (S.live) { S.live = false; $('#liveTag').classList.add('hidden'); $('#liveReset').classList.remove('hidden'); } };
-  $('#fDate').oninput = e => { F.reqDate = e.target.value; stopLive(); };
-  $('#fTime').oninput = e => { F.reqTime = e.target.value; stopLive(); };
-  $('#liveReset').onclick = () => { S.live = true; F.reqDate = todayISO(); F.reqTime = nowHM(); renderForm(); };
   const who = $('#fWho');
   if (who) who.onchange = e => { if (setMe(e.target.value)) loadMyRequests(); };
   $('#fNote').oninput = e => F.note = e.target.value;
   $('#fSubmit').onclick = submitRequest;
-  if (S.timer) clearInterval(S.timer);
-  S.timer = setInterval(() => {
-    if (!S.live) return;
-    F.reqDate = todayISO(); F.reqTime = nowHM();
-    const d = $('#fDate'), t = $('#fTime');
-    if (d && document.activeElement !== d) d.value = F.reqDate;
-    if (t && document.activeElement !== t) t.value = F.reqTime;
-  }, 15000);
   renderItemPicker();
   renderAmount();
   loadMyRequests();
@@ -838,7 +819,7 @@ async function submitRequest() {
   const F = S.F, item = S.boot.items.find(i => i.id === F.itemId);
   if (!S.me) { const w = $('#fWho'); if (w) w.focus(); return toast('กรุณาเลือกชื่อผู้ขอเบิก', 'bad'); }
   if (!item) return toast('กรุณาเลือกรายการรถ/เครื่อง', 'bad');
-  if (!F.reqDate || !F.reqTime) return toast('กรุณาระบุวันที่และเวลา', 'bad');
+  F.reqDate = todayISO(); F.reqTime = nowHM();   // วัน-เวลาที่ขอเบิก = ตอนกดส่ง (บันทึกอัตโนมัติ)
   const payload = { reqDate: F.reqDate, reqTime: F.reqTime, requesterId: S.me.id, itemId: item.id, note: F.note };
   let amt;
   if (item.source === 'STOCK') { payload.amount = F.liters; amt = F.liters + ' ลิตร'; }
