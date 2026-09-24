@@ -677,7 +677,77 @@ function compressImage(file) {
 <main id="view"></main>
 <script>
 /* ผู้จ่ายสต็อก: รับเรื่อง → ยิง QR ขวดทีละใบ (กล้องเปิดค้าง) → กดจ่ายน้ำมันแล้ว (ตัดสต็อก + แจ้งผู้ขอ) */
+const RETURN_MODE = qsVal('mode') === 'return';
+
+/** ลิงก์ไปหน้าเดียวกันแต่สลับโหมด (คงรหัสผู้ใช้ในลิงก์ไว้) */
+function modeLink(toReturn) {
+  const p = new URLSearchParams(location.search);
+  if (toReturn) p.set('mode', 'return'); else p.delete('mode');
+  p.delete('id');
+  const q = p.toString();
+  return location.pathname + (q ? '?' + q : '');
+}
+
+/** ผู้จ่ายสต็อก: รับขวดเปล่าคืนเข้าสต็อก (ยิง QR ได้หลายใบต่อเนื่อง) */
+async function renderReturn(ctx) {
+  const view = $('#view');
+  view.innerHTML = '<div class="empty">กำลังโหลด...</div>';
+  let s;
+  try { s = await api('getStock'); }
+  catch (e) { view.innerHTML = `<div class="card"><div class="alert bad">โหลดข้อมูลไม่สำเร็จ: ${esc(cleanErr(e))}</div></div>`; return; }
+  const out = s.bottles.filter(b => b.status === 'OUT');
+  let codes = [];
+  view.innerHTML = `<div class="card">
+    <div class="card-head"><h2>รับขวดคืนสต็อก</h2><button class="btn ghost sm" id="reReload">รีเฟรช</button></div>
+    ${stockTiles(s)}
+    ${out.length
+      ? `<div class="alert warn">ขวดที่ยังอยู่กับผู้เบิก ${out.length} ขวด
+          <div class="small" style="margin-top:6px;line-height:1.7">${out.map(b => '<b>' + esc(b.code) + '</b> — ' + esc(b.holderName || '-')).join('<br>')}</div></div>`
+      : '<div class="alert info">ตอนนี้ไม่มีขวดค้างอยู่กับผู้เบิก</div>'}
+    <div class="divider"></div>
+    <label class="f" style="font-size:1rem">ยิง QR ขวดเปล่าที่รับคืน (ยิงต่อเนื่องได้หลายใบ)</label>
+    <div id="gun"></div>
+    <div class="field" style="margin-top:12px"><label class="f" for="rNote">หมายเหตุ (ถ้ามี)</label>
+      <input id="rNote" class="input" placeholder="เช่น รับคืนจากคุณสมชาย"></div>
+    <button class="btn purple block" id="btnRet" disabled>บันทึกรับคืนขวดเปล่า</button>
+    <p class="small muted" id="retHint" style="margin-bottom:0">ยิง QR ขวดที่รับคืนอย่างน้อย 1 ใบก่อน</p>
+    <a class="btn ghost block" style="margin-top:10px;text-decoration:none" href="${esc(modeLink(false))}">ไปหน้าจ่ายน้ำมันจากสต็อก</a>
+  </div>`;
+  $('#reReload').onclick = () => renderReturn(ctx);
+  scanGun({
+    mount: '#gun',
+    validate: code => {
+      const b = s.bottles.find(x => x.code === code);
+      if (!b) return 'ไม่พบขวดหมายเลข ' + code + ' ในระบบ';
+      if (b.status === 'EMPTY') return code + ' เป็นขวดเปล่าที่สต็อกอยู่แล้ว';
+      if (b.status === 'FULL') return code + ' เป็นขวดเต็มในสต็อก (ยังไม่ได้จ่ายออก)';
+      return null;
+    },
+    onChange: list => {
+      codes = list;
+      $('#btnRet').disabled = !codes.length;
+      $('#retHint').textContent = codes.length ? 'พร้อมรับคืน: ' + codes.join(', ') : 'ยิง QR ขวดที่รับคืนอย่างน้อย 1 ใบก่อน';
+    }
+  });
+  $('#btnRet').onclick = async () => {
+    const note = $('#rNote').value.trim();
+    const who = [...new Set(codes.map(c => (s.bottles.find(b => b.code === c) || {}).holderName).filter(Boolean))];
+    const ok = await confirmBox('ยืนยันรับคืนขวดเปล่า',
+      `<p>รับคืน <b>${codes.length} ขวด</b>: ${esc(codes.join(', '))}</p>${who.length ? `<p class="small muted">จาก ${esc(who.join(', '))}</p>` : ''}`,
+      'รับคืน', 'purple');
+    if (!ok) return;
+    try {
+      const res = await call('returnBottles', ctx.auth, codes, note);
+      view.innerHTML = `<div class="card">${doneBox(true, 'รับคืนขวดเปล่าแล้ว', `${codes.length} ขวด · ${esc(codes.join(', '))}<br>ขวดเปล่าที่สต็อกตอนนี้ ${res.stock.empty} ขวด`)}
+        <button class="btn ghost block" id="again">รับคืนขวดอื่นต่อ</button>
+        <a class="btn ghost block" style="margin-top:8px;text-decoration:none" href="${esc(modeLink(false))}">ไปหน้าจ่ายน้ำมันจากสต็อก</a></div>`;
+      $('#again').onclick = () => renderReturn(ctx);
+    } catch (e) {}
+  };
+}
+
 async function render(ctx) {
+  if (RETURN_MODE) return renderReturn(ctx);
   if (!ctx.reqId) {
     return renderPendingList(ctx, { source: 'STOCK', status: 'APPROVED' }, 'ไม่มีรายการรอจ่าย',
       r => `${esc(r.itemName)} · อนุมัติ ${thDateTime(r.approvedAt)}`);
@@ -788,7 +858,7 @@ async function render(ctx) {
   };
 }
 
-startApprovalPage({ page: 'dispense_stock', title: 'จ่ายน้ำมันจากสต็อก', badge: '3', color: '#6a1b9a', render });
+startApprovalPage({ page: 'dispense_stock', title: RETURN_MODE ? 'รับขวดคืนสต็อก' : 'จ่ายน้ำมันจากสต็อก', badge: '3', color: '#6a1b9a', render });
 </script>
 </body>
 </html>
